@@ -56,9 +56,8 @@ export function ContactSection() {
             </div>
 
             <div className="space-y-4 md:space-y-8">
-              <a
-                href="tel:+79130506700"
-                className={`group block transition-all duration-700 ${
+              <div
+                className={`transition-all duration-700 ${
                   isVisible ? "translate-x-0 opacity-100" : "-translate-x-16 opacity-0"
                 }`}
                 style={{ transitionDelay: "100ms" }}
@@ -67,10 +66,17 @@ export function ContactSection() {
                   <Phone className="h-3 w-3 text-foreground/60" />
                   <span className="font-mono text-xs text-foreground/60">Телефон</span>
                 </div>
-                <p className="text-base text-foreground transition-colors group-hover:text-foreground/70 md:text-2xl">
-                  +7 (913) 050-67-00
-                </p>
-              </a>
+                <a href="tel:+79130506700" className="group block">
+                  <p className="text-base text-foreground transition-colors group-hover:text-foreground/70 md:text-2xl">
+                    +7 (913) 050-67-00
+                  </p>
+                </a>
+                <a href="tel:+73902202122" className="group block mt-1">
+                  <p className="text-base text-foreground transition-colors group-hover:text-foreground/70 md:text-2xl">
+                    +7 (3902) 202-122
+                  </p>
+                </a>
+              </div>
 
               <a
                 href="mailto:info@azom-abakan.ru"
