@@ -18,7 +18,7 @@ export function ServicesSection() {
             isVisible ? "translate-y-0 opacity-100" : "-translate-y-12 opacity-0"
           }`}
         >
-          <h2 className="mb-2 font-sans text-5xl font-light tracking-tight text-foreground md:text-6xl lg:text-7xl">
+          <h2 className="mb-2 font-sans text-2xl font-light leading-[1.1] tracking-tight text-foreground md:text-3xl lg:text-4xl">
             Услуги
           </h2>
           <p className="font-mono text-sm text-foreground/60 md:text-base">/ Наши компетенции</p>

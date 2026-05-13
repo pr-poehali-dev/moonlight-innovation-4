@@ -19,7 +19,7 @@ export function AboutSection({ scrollToSection }: { scrollToSection?: (index: nu
             isVisible ? "translate-y-0 opacity-100" : "-translate-y-12 opacity-0"
           }`}
         >
-          <h2 className="font-sans text-3xl font-light leading-[1.1] tracking-tight text-foreground md:text-5xl">
+          <h2 className="font-sans text-2xl font-light leading-[1.1] tracking-tight text-foreground md:text-3xl lg:text-4xl">
             О группе компаний <span className="text-foreground/40">АМГ</span>
           </h2>
         </div>
