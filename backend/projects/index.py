@@ -53,7 +53,7 @@ def handler(event: dict, context) -> dict:
         conn = get_db()
         cur = conn.cursor()
         cur.execute(
-            f"SELECT id, title, description, stage, images, created_at FROM {get_schema()}.projects ORDER BY created_at DESC"
+            f"SELECT id, title, description, stage, images, created_at FROM {get_schema()}.projects WHERE hidden IS NOT TRUE ORDER BY created_at DESC"
         )
         rows = cur.fetchall()
         conn.close()
