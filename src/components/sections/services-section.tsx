@@ -6,7 +6,8 @@ export function ServicesSection() {
   return (
     <section
       ref={ref}
-      className="relative flex h-screen w-screen shrink-0 snap-start items-center px-6 pt-40 md:px-12 md:pt-44 lg:px-16"
+      id="services"
+      className="relative flex min-h-screen w-full items-center px-6 py-32 md:px-12 lg:px-16"
     >
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}>
         <div className="absolute inset-0 bg-white/70" />

@@ -5,149 +5,48 @@ import { ServicesSection } from "@/components/sections/services-section"
 import { AboutSection } from "@/components/sections/about-section"
 import { ContactSection } from "@/components/sections/contact-section"
 import { MagneticButton } from "@/components/magnetic-button"
-import { useRef, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
+
+const SECTIONS = ["Главная", "Работы", "Услуги", "О нас", "Контакты"]
+const SECTION_IDS = ["hero", "works", "services", "about", "contacts"]
 
 export default function Index() {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [currentSection, setCurrentSection] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
-  const touchStartY = useRef(0)
-  const touchStartX = useRef(0)
-  const scrollThrottleRef = useRef<number>()
 
   useEffect(() => {
     setIsLoaded(true)
   }, [])
 
   const scrollToSection = (index: number) => {
-    if (scrollContainerRef.current) {
-      const sectionWidth = scrollContainerRef.current.offsetWidth
-      scrollContainerRef.current.scrollTo({
-        left: sectionWidth * index,
-        behavior: "smooth",
-      })
+    const el = document.getElementById(SECTION_IDS[index])
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" })
       setCurrentSection(index)
     }
   }
 
   useEffect(() => {
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartY.current = e.touches[0].clientY
-      touchStartX.current = e.touches[0].clientX
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (Math.abs(e.touches[0].clientY - touchStartY.current) > 10) {
-        e.preventDefault()
-      }
-    }
-
-    const handleTouchEnd = (e: TouchEvent) => {
-      const touchEndY = e.changedTouches[0].clientY
-      const touchEndX = e.changedTouches[0].clientX
-      const deltaY = touchStartY.current - touchEndY
-      const deltaX = touchStartX.current - touchEndX
-
-      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 50) {
-        if (deltaY > 0 && currentSection < 4) {
-          scrollToSection(currentSection + 1)
-        } else if (deltaY < 0 && currentSection > 0) {
-          scrollToSection(currentSection - 1)
-        }
-      }
-    }
-
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener("touchstart", handleTouchStart, { passive: true })
-      container.addEventListener("touchmove", handleTouchMove, { passive: false })
-      container.addEventListener("touchend", handleTouchEnd, { passive: true })
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener("touchstart", handleTouchStart)
-        container.removeEventListener("touchmove", handleTouchMove)
-        container.removeEventListener("touchend", handleTouchEnd)
-      }
-    }
-  }, [currentSection])
-
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-        e.preventDefault()
-
-        if (!scrollContainerRef.current) return
-
-        scrollContainerRef.current.scrollBy({
-          left: e.deltaY,
-          behavior: "instant",
-        })
-
-        const sectionWidth = scrollContainerRef.current.offsetWidth
-        const newSection = Math.round(scrollContainerRef.current.scrollLeft / sectionWidth)
-        if (newSection !== currentSection) {
-          setCurrentSection(newSection)
-        }
-      }
-    }
-
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener("wheel", handleWheel, { passive: false })
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener("wheel", handleWheel)
-      }
-    }
-  }, [currentSection])
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (scrollThrottleRef.current) return
-
-      scrollThrottleRef.current = requestAnimationFrame(() => {
-        if (!scrollContainerRef.current) {
-          scrollThrottleRef.current = undefined
-          return
-        }
-
-        const sectionWidth = scrollContainerRef.current.offsetWidth
-        const scrollLeft = scrollContainerRef.current.scrollLeft
-        const newSection = Math.round(scrollLeft / sectionWidth)
-
-        if (newSection !== currentSection && newSection >= 0 && newSection <= 4) {
-          setCurrentSection(newSection)
-        }
-
-        scrollThrottleRef.current = undefined
-      })
-    }
-
-    const container = scrollContainerRef.current
-    if (container) {
-      container.addEventListener("scroll", handleScroll, { passive: true })
-    }
-
-    return () => {
-      if (container) {
-        container.removeEventListener("scroll", handleScroll)
-      }
-      if (scrollThrottleRef.current) {
-        cancelAnimationFrame(scrollThrottleRef.current)
-      }
-    }
-  }, [currentSection])
+    const observers: IntersectionObserver[] = []
+    SECTION_IDS.forEach((id, index) => {
+      const el = document.getElementById(id)
+      if (!el) return
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) setCurrentSection(index)
+        },
+        { threshold: 0.4 }
+      )
+      observer.observe(el)
+      observers.push(observer)
+    })
+    return () => observers.forEach((o) => o.disconnect())
+  }, [])
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-background">
+    <main className="relative w-full bg-background">
       <CustomCursor />
       <GrainOverlay />
-
-
 
       <nav
         className={`fixed left-0 right-0 top-0 z-50 flex items-end justify-between px-6 pb-4 pt-2 transition-opacity duration-700 md:px-12 [&>div]:mb-[1.5cm] ${
@@ -173,7 +72,7 @@ export default function Index() {
         </button>
 
         <div className="hidden items-center gap-8 md:flex">
-          {["Главная", "Работы", "Услуги", "О нас", "Контакты"].map((item, index) => (
+          {SECTIONS.map((item, index) => (
             <button
               key={item}
               onClick={() => scrollToSection(index)}
@@ -198,23 +97,16 @@ export default function Index() {
         </MagneticButton>
       </nav>
 
-      <div
-        ref={scrollContainerRef}
-        data-scroll-container
-        className={`relative z-10 flex h-screen overflow-x-auto overflow-y-hidden transition-opacity duration-700 ${
-          isLoaded ? "opacity-100" : "opacity-0"
-        }`}
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-      >
+      <div className={`transition-opacity duration-700 ${isLoaded ? "opacity-100" : "opacity-0"}`}>
         {/* Hero Section */}
-        <section className="relative flex min-h-screen w-screen shrink-0 flex-col justify-start px-6 pb-16 md:px-12 md:pb-24" style={{ paddingTop: "calc(8rem + 1cm)" }}>
+        <section id="hero" className="relative flex min-h-screen w-full flex-col justify-start px-6 pb-16 md:px-12 md:pb-24" style={{ paddingTop: "calc(8rem + 1cm)" }}>
           <div
             className="absolute inset-0 z-0 bg-cover bg-center"
             style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}
           >
             <div className="absolute inset-0 bg-white/70" />
           </div>
-          <div className="relative z-10 max-w-3xl">
+          <div className="relative z-10 w-full">
             <div className="mb-4 inline-block animate-in fade-in slide-in-from-bottom-4 rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md duration-700">
               <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
             </div>
@@ -241,15 +133,6 @@ export default function Index() {
               </MagneticButton>
             </div>
           </div>
-
-          <div className="absolute bottom-8 left-1/2 z-10 -translate-x-1/2 animate-in fade-in duration-1000 delay-500">
-            <div className="flex items-center gap-2">
-              <p className="font-mono text-xs text-foreground/60">Листайте вправо</p>
-              <div className="flex h-6 w-12 items-center justify-center rounded-full border border-foreground/20 bg-foreground/10 backdrop-blur-md">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-foreground/60" />
-              </div>
-            </div>
-          </div>
         </section>
 
         <WorkSection />
@@ -257,12 +140,6 @@ export default function Index() {
         <AboutSection scrollToSection={scrollToSection} />
         <ContactSection />
       </div>
-
-      <style>{`
-        div::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
     </main>
   )
 }

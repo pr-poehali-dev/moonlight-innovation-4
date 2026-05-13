@@ -7,12 +7,13 @@ export function AboutSection({ scrollToSection }: { scrollToSection?: (index: nu
   return (
     <section
       ref={ref}
-      className="relative flex h-screen w-screen shrink-0 snap-start items-start px-4 pt-24 md:px-12 md:pt-28 lg:px-16"
+      id="about"
+      className="relative flex min-h-screen w-full items-start px-4 py-32 md:px-12 lg:px-16"
     >
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}>
         <div className="absolute inset-0 bg-white/70" />
       </div>
-      <div className="relative z-10 mx-auto w-full max-w-7xl flex flex-col h-full overflow-hidden">
+      <div className="relative z-10 mx-auto w-full max-w-7xl flex flex-col">
         <div
           className={`mb-4 transition-all duration-700 ${
             isVisible ? "translate-y-0 opacity-100" : "-translate-y-12 opacity-0"
@@ -23,10 +24,7 @@ export function AboutSection({ scrollToSection }: { scrollToSection?: (index: nu
           </h2>
         </div>
 
-        <div
-          className="flex-1 overflow-y-auto pr-2 space-y-4 pb-4"
-          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(0,0,0,0.2) transparent" }}
-        >
+        <div className="space-y-4">
           <div
             className={`grid gap-8 md:grid-cols-2 md:gap-12 transition-all duration-700 ${
               isVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
