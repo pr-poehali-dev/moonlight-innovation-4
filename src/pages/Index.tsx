@@ -220,14 +220,15 @@ export default function Index() {
             </div>
             <h1 className="mb-6 animate-in fade-in slide-in-from-bottom-8 font-sans text-4xl font-light leading-[1.1] tracking-tight text-black duration-1000 md:text-5xl lg:text-6xl">
               <span className="text-balance">
-                Качество точно в срок!
+                Приветствуем вас на главной странице группы компаний АМГ
               </span>
             </h1>
-            <p className="mb-8 max-w-xl animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-black/80 duration-1000 delay-200 md:text-xl">
-              <span className="text-pretty">
-                Абаканский Завод Обработки Металлов — производство металлоконструкций и обработка металла любой сложности. Качество, проверенное на промышленных объектах Сибири.
-              </span>
-            </p>
+            <div className="mb-8 max-w-2xl animate-in fade-in slide-in-from-bottom-4 text-base leading-relaxed text-black/80 duration-1000 delay-200 space-y-4">
+              <p>Группа компаний АМГ объединяет Абаканский Завод Обработки Металлов и МайнингСтройСервис. Мы – команда профессионалов, готовая предложить вам передовые решения в области металлообработки и горно-строительных услуг.</p>
+              <p>Абаканский Завод Обработки Металлов – это современное производство, обеспечивающее высокое качество металлоконструкций и комплектующих для различных отраслей. Наш опыт и передовое оборудование позволяют нам реализовывать самые сложные проекты.</p>
+              <p>МайнингСтройСервис – ваш надежный партнер в горнодобывающей и строительной сферах. Мы осуществляем полный спектр работ: от проектирования до технического обслуживания, гарантируя эффективность и безопасность.</p>
+              <p>Объединив возможности наших предприятий, группа компаний АМГ предлагает комплексные решения, покрывающие весь цикл производства и реализации проектов. Мы стремимся к инновациям и высокому качеству, чтобы стать вашим идеальным партнером.</p>
+            </div>
             <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-4 duration-1000 delay-300 sm:flex-row sm:items-center">
               <MagneticButton
                 size="lg"
