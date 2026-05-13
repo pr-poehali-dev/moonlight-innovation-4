@@ -161,7 +161,7 @@ export default function Index() {
           <img
             src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/835efff8-0157-4d1e-ad6e-39eafb21ec43.jpg"
             alt="АЗОМ"
-            className="h-20 w-auto"
+            className="h-28 w-auto"
             style={{ mixBlendMode: "multiply" }}
           />
         </button>
