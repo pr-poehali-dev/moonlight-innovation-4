@@ -1,4 +1,4 @@
-import { Mail, MapPin } from "lucide-react"
+import { Mail, MapPin, Phone } from "lucide-react"
 import { useReveal } from "@/hooks/use-reveal"
 import { useState, type FormEvent } from "react"
 import { MagneticButton } from "@/components/magnetic-button"
@@ -52,6 +52,22 @@ export function ContactSection() {
             </div>
 
             <div className="space-y-4 md:space-y-8">
+              <a
+                href="tel:+79130506700"
+                className={`group block transition-all duration-700 ${
+                  isVisible ? "translate-x-0 opacity-100" : "-translate-x-16 opacity-0"
+                }`}
+                style={{ transitionDelay: "100ms" }}
+              >
+                <div className="mb-1 flex items-center gap-2">
+                  <Phone className="h-3 w-3 text-foreground/60" />
+                  <span className="font-mono text-xs text-foreground/60">Телефон</span>
+                </div>
+                <p className="text-base text-foreground transition-colors group-hover:text-foreground/70 md:text-2xl">
+                  +7 (913) 050-67-00
+                </p>
+              </a>
+
               <a
                 href="mailto:info@azom-abakan.ru"
                 className={`group block transition-all duration-700 ${
