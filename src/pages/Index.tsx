@@ -169,8 +169,10 @@ export default function Index() {
             <button
               key={item}
               onClick={() => scrollToSection(index)}
-              className={`group relative font-sans text-sm font-bold transition-colors ${
-                currentSection === index ? "text-black" : "text-black/70 hover:text-black"
+              className={`group relative font-sans text-sm font-bold transition-all duration-300 ${
+                currentSection === index
+                  ? "text-black drop-shadow-[0_0_8px_rgba(230,130,30,0.9)]"
+                  : "text-black/70 hover:text-black hover:drop-shadow-[0_0_8px_rgba(230,130,30,0.9)]"
               }`}
             >
               {item}
