@@ -223,7 +223,7 @@ export default function Index() {
                 Приветствуем вас на главной странице группы компаний АМГ
               </span>
             </h1>
-            <p className="mb-8 max-w-xl animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-black/80 duration-1000 delay-200">
+            <p className="mb-8 w-full animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-black/80 duration-1000 delay-200 text-justify">
               Группа компаний АМГ объединяет АЗОМ и МайнингСтройСервис — комплексные решения в металлообработке и горно-строительной сфере. Качество, опыт, надёжность.
             </p>
             <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-4 duration-1000 delay-300 sm:flex-row sm:items-center">
