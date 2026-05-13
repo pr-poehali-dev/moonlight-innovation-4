@@ -171,8 +171,8 @@ export default function Index() {
               onClick={() => scrollToSection(index)}
               className={`group relative font-sans text-sm font-bold transition-all duration-300 ${
                 currentSection === index
-                  ? "text-black drop-shadow-[0_0_8px_rgba(230,130,30,0.9)]"
-                  : "text-black/70 hover:text-black hover:drop-shadow-[0_0_8px_rgba(230,130,30,0.9)]"
+                  ? "text-orange-500 drop-shadow-[0_0_12px_rgba(230,100,0,1)] drop-shadow-[0_0_25px_rgba(230,100,0,0.8)]"
+                  : "text-black/70 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(230,100,0,1)] hover:drop-shadow-[0_0_25px_rgba(230,100,0,0.8)]"
               }`}
             >
               {item}
