@@ -68,8 +68,11 @@ export function ContactSection() {
                 </p>
               </a>
 
-              <div
-                className={`transition-all duration-700 ${
+              <a
+                href="https://yandex.ru/maps/?text=Республика+Хакасия+Абакан+ул.+Складская+21"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`group block transition-all duration-700 ${
                   isVisible ? "translate-y-0 opacity-100" : "translate-y-12 opacity-0"
                 }`}
                 style={{ transitionDelay: "350ms" }}
@@ -78,8 +81,8 @@ export function ContactSection() {
                   <MapPin className="h-3 w-3 text-foreground/60" />
                   <span className="font-mono text-xs text-foreground/60">Локация</span>
                 </div>
-                <p className="text-base text-foreground md:text-2xl">Республика Хакасия, г. Абакан, ул. Складская 21</p>
-              </div>
+                <p className="text-base text-foreground transition-colors group-hover:text-foreground/70 md:text-2xl">Республика Хакасия, г. Абакан, ул. Складская 21</p>
+              </a>
 
               <div
                 className={`flex gap-2 pt-2 transition-all duration-700 md:pt-4 ${
