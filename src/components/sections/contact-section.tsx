@@ -107,7 +107,6 @@ export function ContactSection() {
                 style={{ transitionDelay: "500ms" }}
               >
                 {[
-                  { label: "VK", href: "#" },
                   { label: "MAX", href: "https://max.ru/+79130506700" },
                 ].map((social) => (
                   <a
