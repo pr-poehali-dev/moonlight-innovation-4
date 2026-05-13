@@ -15,31 +15,31 @@ export function WorkSection() {
           }`}
         >
           <h2 className="mb-2 font-sans text-5xl font-light tracking-tight text-foreground md:text-6xl lg:text-7xl">
-            Проекты
+            Объекты
           </h2>
-          <p className="font-mono text-sm text-foreground/60 md:text-base">/ Избранные работы</p>
+          <p className="font-mono text-sm text-foreground/60 md:text-base">/ Реализованные проекты</p>
         </div>
 
         <div className="space-y-6 md:space-y-8">
           {[
             {
               number: "01",
-              title: "ТехноСтарт",
-              category: "Корпоративный портал",
+              title: "Промышленный цех — ХМЗ",
+              category: "Несущие металлоконструкции, 420 т стали",
               year: "2024",
               direction: "left",
             },
             {
               number: "02",
-              title: "АльфаТрейд",
-              category: "Финтех платформа",
-              year: "2024",
+              title: "Мост через р. Абакан",
+              category: "Пролётные строения, сварные балки",
+              year: "2023",
               direction: "right",
             },
             {
               number: "03",
-              title: "МедиаПульс",
-              category: "Медиа сервис",
+              title: "Складской комплекс — Минусинск",
+              category: "Каркас здания, кровельные фермы",
               year: "2023",
               direction: "left",
             },
