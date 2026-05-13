@@ -107,9 +107,7 @@ export function ContactSection() {
                 style={{ transitionDelay: "500ms" }}
               >
                 {[
-                  { label: "Telegram", href: "https://t.me/+79130506700" },
                   { label: "VK", href: "#" },
-                  { label: "WhatsApp", href: "https://wa.me/79130506700" },
                   { label: "MAX", href: "https://max.ru/+79130506700" },
                 ].map((social) => (
                   <a
