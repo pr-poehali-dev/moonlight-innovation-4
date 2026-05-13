@@ -1,6 +1,7 @@
 import { WorkSection } from "@/components/sections/work-section"
 import { ServicesSection } from "@/components/sections/services-section"
 import { AboutSection } from "@/components/sections/about-section"
+import { ClientsSection } from "@/components/sections/clients-section"
 import { ContactSection } from "@/components/sections/contact-section"
 import { MagneticButton } from "@/components/magnetic-button"
 import { useEffect, useState } from "react"
@@ -133,6 +134,7 @@ export default function Index() {
         <WorkSection />
         <ServicesSection />
         <AboutSection scrollToSection={scrollToSection} />
+        <ClientsSection />
         <ContactSection />
       </div>
     </main>
