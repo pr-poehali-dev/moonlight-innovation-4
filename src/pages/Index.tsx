@@ -1,4 +1,3 @@
-import { GrainOverlay } from "@/components/grain-overlay"
 import { WorkSection } from "@/components/sections/work-section"
 import { ServicesSection } from "@/components/sections/services-section"
 import { AboutSection } from "@/components/sections/about-section"
@@ -44,8 +43,6 @@ export default function Index() {
 
   return (
     <main className="relative w-full bg-background">
-      <GrainOverlay />
-
       <nav
         className={`fixed left-0 right-0 top-0 z-50 flex items-end justify-between px-6 pb-4 pt-2 transition-opacity duration-700 md:px-12 [&>div]:mb-[1.5cm] ${
           isLoaded ? "opacity-100" : "opacity-0"
