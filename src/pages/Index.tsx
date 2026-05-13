@@ -218,7 +218,12 @@ export default function Index() {
             <div className="mb-4 inline-block animate-in fade-in slide-in-from-bottom-4 rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md duration-700">
               <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
             </div>
-            <p className="mb-8 w-full animate-in fade-in slide-in-from-bottom-4 text-3xl font-semibold leading-relaxed text-black/80 duration-1000 delay-200 text-justify md:text-4xl">
+            <h1 className="mb-6 animate-in fade-in slide-in-from-bottom-8 font-sans text-4xl font-light leading-[1.1] tracking-tight text-black duration-1000 md:text-5xl lg:text-6xl">
+              <span className="text-balance">
+                Приветствуем вас на главной странице группы компаний АМГ
+              </span>
+            </h1>
+            <p className="mb-8 max-w-xl animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-black/80 duration-1000 delay-200">
               Группа компаний АМГ объединяет АЗОМ и МайнингСтройСервис — комплексные решения в металлообработке и горно-строительной сфере. Качество, опыт, надёжность.
             </p>
             <div className="flex animate-in fade-in slide-in-from-bottom-4 flex-col gap-4 duration-1000 delay-300 sm:flex-row sm:items-center">
