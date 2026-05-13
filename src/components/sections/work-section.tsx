@@ -51,7 +51,7 @@ export function WorkSection() {
       className="relative w-full px-6 py-24 md:px-12 lg:px-16"
     >
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}>
-        <div className="absolute inset-0 bg-white/93" />
+        <div className="absolute inset-0 bg-white/90" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl">
