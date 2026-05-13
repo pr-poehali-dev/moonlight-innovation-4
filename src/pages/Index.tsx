@@ -150,7 +150,7 @@ export default function Index() {
 
 
       <nav
-        className={`fixed left-0 right-0 top-0 z-50 flex items-center justify-between px-6 py-6 transition-opacity duration-700 md:px-12 ${
+        className={`fixed left-0 right-0 top-0 z-50 flex items-end justify-between px-6 pb-4 pt-2 transition-opacity duration-700 md:px-12 ${
           isLoaded ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -162,7 +162,6 @@ export default function Index() {
             src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
             alt="АЗОМ"
             className="h-32 w-auto"
-
           />
         </button>
 
