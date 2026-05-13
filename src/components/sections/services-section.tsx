@@ -46,6 +46,11 @@ export function ServicesSection() {
               description: "Монтаж готовых конструкций на объекте, покраска и нанесение защитных покрытий для долгого срока службы.",
               direction: "bottom",
             },
+            {
+              title: "Ремонт промышленного оборудования",
+              description: "Ремонт дробильного оборудования, грохотов, насосов высокого давления, гидроцилиндров, карданных валов и многого другого.",
+              direction: "left",
+            },
           ].map((service, i) => (
             <ServiceCard key={i} service={service} index={i} isVisible={isVisible} />
           ))}
