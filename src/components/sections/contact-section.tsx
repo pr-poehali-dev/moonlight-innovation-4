@@ -37,7 +37,7 @@ export function ContactSection() {
       className="relative flex min-h-screen w-full items-center px-4 py-32 md:px-12 lg:px-16"
     >
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}>
-        <div className="absolute inset-0 bg-white/70" />
+        <div className="absolute inset-0 bg-white/90" />
       </div>
       <div className="relative z-10 mx-auto w-full max-w-7xl">
         <div className="grid gap-8 md:grid-cols-[1.2fr_1fr] md:gap-16 lg:gap-24">
