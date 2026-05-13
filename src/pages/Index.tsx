@@ -161,7 +161,7 @@ export default function Index() {
           <img
             src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
             alt="АЗОМ"
-            className="h-28 w-auto"
+            className="h-32 w-auto"
 
           />
         </button>
