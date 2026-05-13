@@ -1,6 +1,8 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useReveal } from "@/hooks/use-reveal"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+
+const API_URL = "https://functions.poehali.dev/2bd7a9a0-3822-4e18-bdd8-38b4a107a4ab"
 
 type Stage = "Все" | "В производстве" | "Готово" | "Смонтировано"
 
@@ -14,38 +16,6 @@ interface Project {
   images: string[]
 }
 
-const PROJECTS: Project[] = [
-  {
-    id: 1,
-    title: "Конусы переходные",
-    description: "Изготовление конических переходов большого диаметра из листовой стали",
-    stage: "Готово",
-    images: [
-      "https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/1f4a46f4-11d1-4750-b039-af284daee6e4.jpg",
-      "https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/685b94c8-cea3-4d65-a4ab-eb434c19598c.jpg",
-    ],
-  },
-  {
-    id: 2,
-    title: "Бункер-накопитель",
-    description: "Сборка и сварка цилиндрического бункера с конической воронкой",
-    stage: "В производстве",
-    images: [
-      "https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/70102963-d330-4e3f-b783-f3908b0b9640.jpg",
-    ],
-  },
-  {
-    id: 3,
-    title: "Монтаж бункера на объекте",
-    description: "Установка бункера-воронки краном на горнодобывающем предприятии",
-    stage: "Смонтировано",
-    images: [
-      "https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/6dcd51c7-43a2-4802-978d-fd607e23b6e7.jpg",
-      "https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/b5ea2e60-5c8d-4eb9-984e-e8fb896ac6b4.jpg",
-    ],
-  },
-]
-
 const STAGE_COLORS: Record<Exclude<Stage, "Все">, string> = {
   "В производстве": "bg-blue-100 text-blue-700",
   "Готово": "bg-green-100 text-green-700",
@@ -56,10 +26,18 @@ export function WorkSection() {
   const { ref, isVisible } = useReveal(0.2)
   const [activeStage, setActiveStage] = useState<Stage>("Все")
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    fetch(API_URL)
+      .then((r) => r.json())
+      .then((data) => setProjects(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
 
   const filtered = activeStage === "Все"
-    ? PROJECTS
-    : PROJECTS.filter((p) => p.stage === activeStage)
+    ? projects
+    : projects.filter((p) => p.stage === activeStage)
 
   const openLightbox = (images: string[], index: number) => setLightbox({ images, index })
   const closeLightbox = () => setLightbox(null)
