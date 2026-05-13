@@ -207,7 +207,7 @@ export default function Index() {
             opacity={0.97}
           />
         </Shader>
-        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 bg-white/60" />
       </div>
 
       <nav
