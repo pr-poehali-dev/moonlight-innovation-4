@@ -49,9 +49,9 @@ export function MagneticButton({
 
   const variants = {
     primary:
-      "bg-foreground/95 text-background hover:bg-foreground backdrop-blur-md hover:scale-[1.02] active:scale-[0.98]",
+      "bg-foreground/95 text-background hover:bg-foreground backdrop-blur-md hover:scale-[1.02] active:scale-[0.98] hover:drop-shadow-[0_0_12px_rgba(230,100,0,1)] hover:drop-shadow-[0_0_25px_rgba(230,100,0,0.8)]",
     secondary:
-      "bg-foreground/5 text-foreground hover:bg-foreground/10 backdrop-blur-xl border border-foreground/10 hover:border-foreground/20",
+      "bg-foreground/5 text-foreground hover:bg-foreground/10 backdrop-blur-xl border border-foreground/10 hover:border-orange-400 hover:text-orange-500 hover:drop-shadow-[0_0_12px_rgba(230,100,0,1)] hover:drop-shadow-[0_0_25px_rgba(230,100,0,0.8)]",
     ghost: "bg-transparent text-foreground hover:bg-foreground/5 backdrop-blur-sm",
   }
 
