@@ -124,9 +124,9 @@ export function ContactSection() {
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 border-b border-transparent font-mono text-xs text-foreground/60 transition-all hover:border-foreground/60 hover:text-foreground/90"
+                    className="flex items-center gap-3 border-b border-transparent font-mono text-base text-foreground/60 transition-all hover:border-foreground/60 hover:text-foreground/90"
                   >
-                    <img src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/0f03c19f-6492-4c9e-b8b4-edd4e308db07.png" alt="MAX" className="h-5 w-5" />
+                    <img src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/0f03c19f-6492-4c9e-b8b4-edd4e308db07.png" alt="MAX" className="h-10 w-10" />
                     {social.label}
                   </a>
                 ))}
