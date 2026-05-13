@@ -157,7 +157,7 @@ export default function Index() {
         <button
           onClick={() => scrollToSection(0)}
           className="flex items-center gap-0 transition-transform hover:scale-105"
-          style={{ marginLeft: "-1.8cm" }}
+          style={{ marginLeft: "-1cm" }}
         >
           <img
             src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
