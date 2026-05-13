@@ -6,9 +6,12 @@ export function ServicesSection() {
   return (
     <section
       ref={ref}
-      className="flex h-screen w-screen shrink-0 snap-start items-center px-6 pt-20 md:px-12 md:pt-0 lg:px-16"
+      className="relative flex h-screen w-screen shrink-0 snap-start items-center px-6 pt-20 md:px-12 md:pt-0 lg:px-16"
     >
-      <div className="mx-auto w-full max-w-7xl">
+      <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}>
+        <div className="absolute inset-0 bg-white/70" />
+      </div>
+      <div className="relative z-10 mx-auto w-full max-w-7xl">
         <div
           className={`mb-12 transition-all duration-700 md:mb-16 ${
             isVisible ? "translate-y-0 opacity-100" : "-translate-y-12 opacity-0"
