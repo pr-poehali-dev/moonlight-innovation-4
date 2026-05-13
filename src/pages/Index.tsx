@@ -163,6 +163,11 @@ export default function Index() {
             alt="АЗОМ"
             className="h-32 w-auto"
           />
+          <img
+            src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/77df7b95-de84-41c1-91db-cba1516b2392.png"
+            alt="МайнингСтройСервис"
+            className="h-32 w-auto"
+          />
         </button>
 
         <div className="hidden items-center gap-8 md:flex">
