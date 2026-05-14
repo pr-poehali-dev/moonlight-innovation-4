@@ -117,7 +117,7 @@ export function ContactSection() {
                 style={{ transitionDelay: "500ms" }}
               >
                 {[
-                  { label: "Написать в мессенджер MAX", href: "https://max.ru/+79130506700" },
+                  { label: "Написать в мессенджер MAX", href: "https://max.ru/u/f9LHodD0cOIQ8RKvipA5hS3eTuROZGW0tefryqiPUe4ViEfhYsLpjf54IAI" },
                 ].map((social) => (
                   <a
                     key={social.label}
