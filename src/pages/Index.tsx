@@ -93,7 +93,7 @@ export default function Index() {
           ))}
         </div>
 
-        <MagneticButton variant="secondary" onClick={() => scrollToSection(4)} className="mb-[1.5cm]">
+        <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="mb-[1.5cm]">
           Связаться
         </MagneticButton>
       </nav>
