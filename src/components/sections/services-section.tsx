@@ -103,7 +103,7 @@ function ServiceCard({
         <div className="h-px w-8 bg-foreground/30 transition-all duration-300 group-hover:w-12 group-hover:bg-foreground/50" />
         <span className="font-mono text-xs text-foreground/60">0{index + 1}</span>
       </div>
-      <h3 className="mb-2 font-sans text-base font-light text-foreground md:text-lg lg:text-xl">{service.title}</h3>
+      <h3 className="mb-2 font-sans text-base text-foreground md:text-lg lg:text-xl font-normal">{service.title}</h3>
       <p className="max-w-sm text-sm leading-relaxed text-foreground/80 md:text-base">{service.description}</p>
     </div>
   )
