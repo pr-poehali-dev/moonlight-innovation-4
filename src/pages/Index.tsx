@@ -50,7 +50,7 @@ export default function Index() {
   return (
     <main className="relative w-full bg-background">
       <nav
-        className={`fixed left-0 right-0 top-0 z-50 flex items-end justify-between px-6 pb-4 pt-2 transition-opacity duration-700 md:px-12 [&>div]:mb-[1.5cm] ${
+        className={`fixed left-0 right-0 top-0 z-50 flex items-end md:items-center justify-between px-6 pb-4 pt-2 transition-opacity duration-700 md:px-12 [&>div]:mb-[1.5cm] md:[&>div]:mb-0 md:pb-0 ${
           isLoaded ? "opacity-100" : "opacity-0"
         }`}
       >
