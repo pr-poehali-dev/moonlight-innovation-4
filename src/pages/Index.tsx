@@ -15,6 +15,11 @@ export default function Index() {
 
   useEffect(() => {
     setIsLoaded(true)
+    fetch("https://functions.poehali.dev/9fc752ab-8d3d-4236-bc17-543820608736", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: window.location.pathname }),
+    }).catch(() => {})
   }, [])
 
   const scrollToSection = (index: number) => {

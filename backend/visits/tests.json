@@ -1,0 +1,17 @@
+{
+  "tests": [
+    {
+      "name": "Record visit",
+      "method": "POST",
+      "path": "/",
+      "body": {"path": "/"},
+      "expectedStatus": 200
+    },
+    {
+      "name": "Get stats forbidden without token",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 403
+    }
+  ]
+}
