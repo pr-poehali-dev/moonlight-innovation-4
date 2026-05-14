@@ -56,7 +56,7 @@ export default function Index() {
       >
         <button
           onClick={() => scrollToSection(0)}
-          className="flex items-center gap-0 transition-transform hover:scale-105"
+          className="flex items-center gap-0 transition-transform hover:scale-105 md:flex-none w-full justify-center md:w-auto md:justify-start"
           style={{ marginLeft: "-1cm" }}
         >
           <img
@@ -93,9 +93,11 @@ export default function Index() {
           ))}
         </div>
 
-        <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="mb-[1.5cm] px-3 py-1.5 text-xs md:px-6 md:py-2.5 md:text-sm">
-          Связаться
-        </MagneticButton>
+        <div className="hidden md:block">
+          <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="mb-[1.5cm] md:px-6 md:py-2.5 md:text-sm">
+            Связаться
+          </MagneticButton>
+        </div>
       </nav>
 
       <div className={`transition-opacity duration-700 ${isLoaded ? "opacity-100" : "opacity-0"}`}>
