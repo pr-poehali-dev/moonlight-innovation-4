@@ -94,7 +94,7 @@ export default function Index() {
         </div>
 
         <div className="hidden md:block">
-          <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="mb-[1.5cm] md:px-6 md:py-2.5 md:text-sm">
+          <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="md:px-6 md:py-2.5 md:text-sm">
             Связаться
           </MagneticButton>
         </div>
