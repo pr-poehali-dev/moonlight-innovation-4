@@ -112,9 +112,7 @@ export default function Index() {
               <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
             </div>
             <h1 className="mb-6 w-full animate-in fade-in slide-in-from-bottom-8 font-sans text-2xl font-light leading-[1.1] tracking-tight text-black duration-1000 md:text-3xl lg:text-4xl text-center">
-              <span className="text-balance">
-                Металлообработка и промышленное строительство
-              </span>
+              <span className="text-balance">Металлообработка и Промышленное строительство</span>
             </h1>
             <div className="mb-8 w-full animate-in fade-in slide-in-from-bottom-4 text-lg leading-relaxed text-black/80 duration-1000 delay-200 text-justify space-y-4">
               <p>Абаканский Завод Обработки Металлов – это современное производство, обеспечивающее высокое качество металлоконструкций и комплектующих для различных отраслей. Наш опыт и передовое оборудование позволяют нам реализовывать самые сложные проекты.</p>
