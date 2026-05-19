@@ -95,12 +95,9 @@ export default function Index() {
           ))}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <MagneticButton variant="secondary" onClick={() => navigate("/calculator")} className="md:px-6 md:py-2.5 md:text-sm">
+        <div className="hidden md:block">
+          <MagneticButton variant="primary" onClick={() => navigate("/calculator")} className="md:px-6 md:py-2.5 md:text-sm">
             Калькулятор
-          </MagneticButton>
-          <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="md:px-6 md:py-2.5 md:text-sm">
-            Связаться
           </MagneticButton>
         </div>
       </nav>
