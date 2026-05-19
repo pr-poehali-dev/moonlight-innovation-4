@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { MagneticButton } from "@/components/magnetic-button"
 
 type Mode = "turning" | "milling"
 
@@ -24,29 +25,19 @@ const complexityMap = {
 function getBaseTimeTurning(diam: number, len: number) {
   const d = Math.max(10, diam)
   const l = Math.max(10, len)
-  const machineTime = (l * Math.pow(d, 0.42)) / 235
-  const setupPart = 8 + (d > 130 ? 4 : 0)
-  return Math.round((machineTime + setupPart) * 10) / 10
+  return Math.round(((l * Math.pow(d, 0.42)) / 235 + 8 + (d > 130 ? 4 : 0)) * 10) / 10
 }
 
 function getBaseTimeMilling(lenMm: number, widthMm: number) {
   const L = Math.max(15, lenMm)
   const W = Math.max(15, widthMm)
-  const areaFactor = (L * W) / 4800
-  const perimeterFactor = (2 * (L + W)) / 320
-  const machineTime = areaFactor * 5.2 + perimeterFactor * 3.0
-  return Math.round(Math.min(280, Math.max(10, machineTime + 12)) * 10) / 10
+  const t = (L * W) / 4800 * 5.2 + (2 * (L + W)) / 320 * 3.0
+  return Math.round(Math.min(280, Math.max(10, t + 12)) * 10) / 10
 }
 
 function getMaterialFactor(mat: string) {
-  if (mat === "custom") return 1.0
-  if (mat === "85") return 0.85
-  if (mat === "110") return 0.85
-  if (mat === "65") return 1.0
-  if (mat === "95") return 1.45
-  if (mat === "210") return 1.9
-  if (mat === "950") return 2.7
-  return 1.0
+  const map: Record<string, number> = { custom: 1.0, "85": 0.85, "110": 0.85, "65": 1.0, "95": 1.45, "210": 1.9, "950": 2.7 }
+  return map[mat] ?? 1.0
 }
 
 export default function Calculator() {
@@ -62,205 +53,199 @@ export default function Calculator() {
   const [tooling, setTooling] = useState(0)
   const [quantity, setQuantity] = useState(5)
 
-  const complexityOptions = complexityMap[mode]
-
   useEffect(() => {
     setComplexity(complexityMap[mode][0].value)
-    if (mode === "turning") {
-      setSizeA(80)
-      setSizeB(200)
-      setQuantity(5)
-      setPartWeight(1.2)
-    } else {
-      setSizeA(140)
-      setSizeB(110)
-      setQuantity(4)
-      setPartWeight(1.6)
-    }
     setTooling(0)
+    if (mode === "turning") { setSizeA(80); setSizeB(200); setQuantity(5); setPartWeight(1.2) }
+    else { setSizeA(140); setSizeB(110); setQuantity(4); setPartWeight(1.6) }
   }, [mode])
 
-  const materialPriceKg =
-    material === "custom" ? customPrice : parseFloat(material)
-
+  const materialPriceKg = material === "custom" ? customPrice : parseFloat(material)
   const materialCostPerPiece = materialPriceKg * partWeight
-
-  const baseMin =
-    mode === "turning"
-      ? getBaseTimeTurning(sizeA, sizeB)
-      : getBaseTimeMilling(sizeA, sizeB)
-
-  const materialFactor = getMaterialFactor(material)
-  const techMult = Math.min(
-    4.8,
-    Math.max(0.7, materialFactor * 0.55 + complexity * 0.35 + precision * 0.4)
-  )
+  const baseMin = mode === "turning" ? getBaseTimeTurning(sizeA, sizeB) : getBaseTimeMilling(sizeA, sizeB)
+  const techMult = Math.min(4.8, Math.max(0.7, getMaterialFactor(material) * 0.55 + complexity * 0.35 + precision * 0.4))
   const adjustedMin = Math.round(baseMin * techMult * 10) / 10
-
-  const hourly = mode === "turning" ? RATES.turning : RATES.milling
-  const totalMachiningMin = adjustedMin * quantity + DEFAULT_SETUP_MIN
-  const totalMachiningCost = (totalMachiningMin / 60) * hourly
-  const totalMaterialCost = materialCostPerPiece * quantity
-  const totalBatch = Math.round(totalMachiningCost + totalMaterialCost + tooling)
+  const hourly = RATES[mode]
+  const totalMachiningCost = ((adjustedMin * quantity + DEFAULT_SETUP_MIN) / 60) * hourly
+  const totalBatch = Math.round(totalMachiningCost + materialCostPerPiece * quantity + tooling)
   const pricePerPiece = Math.round(totalBatch / quantity)
   const machiningPerPiece = Math.round(totalMachiningCost / quantity)
-
   const fmt = (n: number) => n.toLocaleString("ru-RU")
 
   return (
-    <div style={{ background: "#0a0c10", minHeight: "100vh", fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", padding: "40px 24px", color: "#e8edf2" }}>
-      <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+    <div className="relative min-h-screen w-full bg-background font-sans">
+      {/* Фон как на главной */}
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/files/1df6a706-58a7-4e75-b7d6-f4921309aaf3.jpg')" }}
+      >
+        <div className="absolute inset-0 bg-white/92" />
+      </div>
 
-        {/* Кнопка назад */}
+      {/* Навигация */}
+      <nav className="relative z-10 flex items-center justify-between px-6 py-4 md:px-12">
         <button
           onClick={() => navigate("/")}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: "rgba(224,58,26,0.15)", border: "1px solid rgba(224,58,26,0.3)",
-            color: "#ff5e3a", borderRadius: 40, padding: "8px 18px",
-            fontSize: "0.8rem", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase",
-            cursor: "pointer", marginBottom: 24, transition: "0.2s",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(224,58,26,0.28)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(224,58,26,0.15)")}
+          className="flex items-center gap-0 transition-transform hover:scale-105"
         >
-          ← Назад на сайт
+          <img
+            src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
+            alt="АЗОМ"
+            className="h-24 w-auto"
+          />
+          <img
+            src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/77df7b95-de84-41c1-91db-cba1516b2392.png"
+            alt="МайнингСтройСервис"
+            className="h-24 w-auto"
+            style={{ marginLeft: "-1.5cm" }}
+          />
         </button>
+        <MagneticButton variant="secondary" onClick={() => navigate("/")} className="px-5 py-2 text-sm">
+          ← На сайт
+        </MagneticButton>
+      </nav>
 
-        <div style={{ display: "inline-block", fontSize: "0.75rem", letterSpacing: 2, textTransform: "uppercase", background: "rgba(220,60,30,0.2)", color: "#ff5e3a", padding: "6px 14px", borderRadius: 40, marginBottom: 20, fontWeight: 600, marginLeft: 16 }}>
-          ⚙️ AMG industrial tech
+      {/* Контент */}
+      <div className="relative z-10 px-6 pb-16 md:px-12">
+
+        {/* Заголовок */}
+        <div className="mb-8">
+          <div className="mb-4 inline-block rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md">
+            <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
+          </div>
+          <h1 className="font-sans text-2xl font-light leading-tight tracking-tight text-black md:text-4xl">
+            Калькулятор токарных<br />и фрезерных работ
+          </h1>
+          <p className="mt-2 text-sm text-black/50">Расчёт серийности · материал с реальной ценой · подготовка КП за 2 минуты</p>
         </div>
 
-        <h1 style={{ fontSize: "clamp(1.8rem, 4vw, 2.8rem)", fontWeight: 700, background: "linear-gradient(135deg, #fff 20%, #b0bec5 80%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", letterSpacing: -1, marginBottom: 12 }}>
-          Калькулятор<br />токарных и фрезерных работ
-        </h1>
-        <div style={{ color: "#8a99aa", fontSize: "1rem", borderLeft: "3px solid #e03a1a", paddingLeft: 18, marginBottom: 40 }}>
-          Расчёт серийности · материал с реальной ценой · подготовка КП за 2 минуты
+        {/* Переключатель режима */}
+        <div className="mb-6 flex gap-2 rounded-full border border-foreground/10 bg-foreground/5 p-1.5 backdrop-blur-md w-fit">
+          {(["turning", "milling"] as Mode[]).map(m => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200 ${
+                mode === m
+                  ? "bg-foreground text-background shadow-sm"
+                  : "text-foreground/60 hover:text-foreground"
+              }`}
+            >
+              {m === "turning" ? "🔩 Токарная" : "🛠️ Фрезерная"}
+            </button>
+          ))}
         </div>
 
-        {/* Карточка */}
-        <div style={{ background: "#0f1219", borderRadius: 36, border: "1px solid rgba(255,85,45,0.25)", boxShadow: "0 25px 40px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)", overflow: "hidden" }}>
+        {/* Сетка */}
+        <div className="flex flex-col gap-6 lg:flex-row">
 
-          <div style={{ display: "flex", gap: 32, flexWrap: "wrap", padding: "32px 36px 36px" }}>
+          {/* Левая — параметры */}
+          <div className="flex flex-col gap-4 lg:flex-1">
 
-            {/* Левая колонка — параметры */}
-            <div style={{ flex: "1.6", minWidth: 280 }}>
-
-              {/* Переключатель режима */}
-              <div style={{ display: "flex", background: "#080b10", padding: 8, borderRadius: 70, marginBottom: 30, gap: 8, border: "1px solid #232732" }}>
-                {(["turning", "milling"] as Mode[]).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setMode(m)}
-                    style={{
-                      flex: 1, textAlign: "center", padding: "12px 8px", fontWeight: 700,
-                      borderRadius: 60, cursor: "pointer", transition: "0.2s", border: "none",
-                      background: mode === m ? "linear-gradient(95deg,#e03a1a,#c72c0c)" : "transparent",
-                      color: mode === m ? "white" : "#8a99aa",
-                      fontSize: "1rem", letterSpacing: 0.5,
-                      boxShadow: mode === m ? "0 6px 14px rgba(224,58,26,0.3)" : "none",
-                    }}
-                  >
-                    {m === "turning" ? "🔩 Токарная обработка" : "🛠️ Фрезерная обработка"}
-                  </button>
-                ))}
-              </div>
-
-              {/* Материал */}
-              <Param label="🧱 Материал заготовки">
-                <StyledSelect value={material} onChange={e => setMaterial(e.target.value)}>
-                  <option value="custom">🔘 Своя цена / металл (ввести ниже)</option>
+            {/* Материал */}
+            <div className="rounded-2xl border border-foreground/10 bg-white/60 p-5 backdrop-blur-md">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-black/40">Материал</p>
+              <Field label="🧱 Материал заготовки">
+                <CalcSelect value={material} onChange={e => setMaterial(e.target.value)}>
+                  <option value="custom">🔘 Своя цена (ввести ниже)</option>
                   <option value="85">Алюминий / Д16Т — 85 ₽/кг</option>
                   <option value="110">Латунь / бронза — 110 ₽/кг</option>
                   <option value="65">Конструкционная сталь (Ст3, 20) — 65 ₽/кг</option>
                   <option value="95">Легированная сталь 40Х — 95 ₽/кг</option>
                   <option value="210">Нержавеющая сталь (12Х18Н10Т) — 210 ₽/кг</option>
                   <option value="950">Титановые сплавы — 950 ₽/кг</option>
-                </StyledSelect>
-              </Param>
-
-              {/* Блок кастомной цены */}
-              <div style={{ background: "#0a0d14", padding: "12px 16px", borderRadius: 26, marginTop: -6, marginBottom: 24, opacity: material === "custom" ? 1 : 0.6 }}>
-                <div style={{ display: "flex", gap: 14 }}>
-                  <div style={{ flex: 1 }}>
-                    <StyledInput type="number" value={material === "custom" ? customPrice : parseFloat(material)} disabled={material !== "custom"} onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)} placeholder="Цена руб/кг" step={10} />
-                    <div style={{ fontSize: "0.65rem", color: "#6c7a8a", marginTop: 6, marginLeft: 12 }}>руб/кг</div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <StyledInput type="number" value={partWeight} disabled={material !== "custom"} onChange={e => setPartWeight(parseFloat(e.target.value) || 0)} placeholder="Масса детали" step={0.1} />
-                    <div style={{ fontSize: "0.65rem", color: "#6c7a8a", marginTop: 6, marginLeft: 12 }}>масса 1 шт (кг)</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Сложность */}
-              <Param label="⚙️ Сложность детали">
-                <StyledSelect value={complexity} onChange={e => setComplexity(parseFloat(e.target.value))}>
-                  {complexityOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.text}</option>
-                  ))}
-                </StyledSelect>
-              </Param>
-
-              {/* Точность */}
-              <Param label="🎯 Требуемая точность">
-                <StyledSelect value={precision} onChange={e => setPrecision(parseFloat(e.target.value))}>
-                  <option value={1.0}>IT14–IT12 (обычная) +0%</option>
-                  <option value={1.45}>IT11–IT9 (средняя) +45% времени</option>
-                  <option value={2.0}>IT8–IT7 (высокая H9/H7) +100% времени</option>
-                </StyledSelect>
-              </Param>
-
-              {/* Габариты */}
-              <Param label="📏 Габариты обработки">
-                <div style={{ display: "flex", gap: 14 }}>
-                  <div style={{ flex: 1 }}>
-                    <StyledInput type="number" value={sizeA} onChange={e => setSizeA(parseFloat(e.target.value) || 10)} step={5} />
-                    <div style={{ fontSize: "0.65rem", color: "#6c7a8a", marginTop: 6, marginLeft: 12 }}>{mode === "turning" ? "⌀ макс. диаметр (мм)" : "длина детали (мм)"}</div>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <StyledInput type="number" value={sizeB} onChange={e => setSizeB(parseFloat(e.target.value) || 10)} step={10} />
-                    <div style={{ fontSize: "0.65rem", color: "#6c7a8a", marginTop: 6, marginLeft: 12 }}>{mode === "turning" ? "длина обработки (мм)" : "ширина / высота (мм)"}</div>
-                  </div>
-                </div>
-              </Param>
-
-              {/* Оснастка */}
-              <Param label="🛠️ Оснастка / доп. операции">
-                <StyledSelect value={tooling} onChange={e => setTooling(parseInt(e.target.value))}>
-                  <option value={0}>Базовая оснастка</option>
-                  <option value={1800}>➕ Люнет / планшайба (+1800 ₽)</option>
-                  <option value={3200}>➕ Специальные кулачки (+3200 ₽)</option>
-                  <option value={500}>➕ Доп. сверление / резьба (+500 ₽)</option>
-                  <option value={2800}>➕ 4-осевая обработка (+2800 ₽)</option>
-                </StyledSelect>
-              </Param>
-
-              {/* Количество */}
-              <Param label="📦 Серийность (количество деталей)">
-                <StyledInput type="number" value={quantity} onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} min={1} step={1} />
-                <div style={{ fontSize: "0.65rem", color: "#6c7a8a", marginTop: 6, marginLeft: 12 }}>Наладка распределяется на всю партию → цена за шт снижается</div>
-              </Param>
-            </div>
-
-            {/* Правая колонка — результаты */}
-            <div style={{ flex: 1, minWidth: 280, background: "#0b0e15", borderRadius: 28, padding: 24, border: "1px solid #1f232c", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02), 0 8px 20px rgba(0,0,0,0.6)" }}>
-
-              <PriceCard label="Стоимость за 1 шт" value={`${fmt(pricePerPiece)} ₽`} sub="включая материал + обработку" accent="#e03a1a" />
-              <PriceCard label="Стоимость партии" value={`${fmt(totalBatch)} ₽`} sub={`партия ${quantity} шт`} accent="#4c6a8a" />
-
-              <DetailRow label="⏱️ Базовое время (1 шт)" value={`${baseMin.toFixed(1)} мин`} />
-              <DetailRow label="⚡ Итоговое время с коэф." value={`${adjustedMin.toFixed(1)} мин`} />
-              <DetailRow label="🏭 Ставка цеха (руб/ч)" value={`${fmt(hourly)} ₽/ч`} />
-              <DetailRow label="🔄 Наладка на партию" value={`${DEFAULT_SETUP_MIN} мин`} />
-              <DetailRow label="📦 Материал (1 шт)" value={`${fmt(Math.round(materialCostPerPiece))} ₽`} />
-              <DetailRow label="🔧 Оснастка (партия)" value={`${fmt(tooling)} ₽`} />
-              <DetailRow label="🛠️ Обработка (1 шт)" value={`${fmt(machiningPerPiece)} ₽`} />
-
-              <div style={{ fontSize: "0.7rem", textAlign: "center", marginTop: 24, color: "#5e6f82", borderTop: "1px solid #1b1f28", paddingTop: 20 }}>
-                *Расчёт носит оценочный характер. Точное КП после консультации с технологом.
+                </CalcSelect>
+              </Field>
+              <div className={`mt-3 flex gap-3 transition-opacity ${material === "custom" ? "opacity-100" : "opacity-40"}`}>
+                <Field label="Цена, руб/кг" className="flex-1">
+                  <CalcInput type="number" value={material === "custom" ? customPrice : parseFloat(material)} disabled={material !== "custom"} onChange={e => setCustomPrice(parseFloat(e.target.value) || 0)} step={10} />
+                </Field>
+                <Field label="Масса детали, кг" className="flex-1">
+                  <CalcInput type="number" value={partWeight} disabled={material !== "custom"} onChange={e => setPartWeight(parseFloat(e.target.value) || 0)} step={0.1} />
+                </Field>
               </div>
             </div>
+
+            {/* Параметры обработки */}
+            <div className="rounded-2xl border border-foreground/10 bg-white/60 p-5 backdrop-blur-md">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-black/40">Параметры обработки</p>
+              <div className="flex flex-col gap-4">
+                <Field label="⚙️ Сложность детали">
+                  <CalcSelect value={complexity} onChange={e => setComplexity(parseFloat(e.target.value))}>
+                    {complexityMap[mode].map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.text}</option>
+                    ))}
+                  </CalcSelect>
+                </Field>
+                <Field label="🎯 Требуемая точность">
+                  <CalcSelect value={precision} onChange={e => setPrecision(parseFloat(e.target.value))}>
+                    <option value={1.0}>IT14–IT12 (обычная) +0%</option>
+                    <option value={1.45}>IT11–IT9 (средняя) +45%</option>
+                    <option value={2.0}>IT8–IT7 (высокая H9/H7) +100%</option>
+                  </CalcSelect>
+                </Field>
+                <div className="flex gap-3">
+                  <Field label={mode === "turning" ? "⌀ Диаметр, мм" : "Длина, мм"} className="flex-1">
+                    <CalcInput type="number" value={sizeA} onChange={e => setSizeA(parseFloat(e.target.value) || 10)} step={5} />
+                  </Field>
+                  <Field label={mode === "turning" ? "Длина, мм" : "Ширина, мм"} className="flex-1">
+                    <CalcInput type="number" value={sizeB} onChange={e => setSizeB(parseFloat(e.target.value) || 10)} step={10} />
+                  </Field>
+                </div>
+                <Field label="🛠️ Оснастка / доп. операции">
+                  <CalcSelect value={tooling} onChange={e => setTooling(parseInt(e.target.value))}>
+                    <option value={0}>Базовая оснастка</option>
+                    <option value={1800}>➕ Люнет / планшайба (+1 800 ₽)</option>
+                    <option value={3200}>➕ Специальные кулачки (+3 200 ₽)</option>
+                    <option value={500}>➕ Доп. сверление / резьба (+500 ₽)</option>
+                    <option value={2800}>➕ 4-осевая обработка (+2 800 ₽)</option>
+                  </CalcSelect>
+                </Field>
+                <Field label="📦 Количество деталей">
+                  <CalcInput type="number" value={quantity} onChange={e => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} min={1} step={1} />
+                  <p className="mt-1.5 text-xs text-black/40">Наладка распределяется на всю партию — цена за шт снижается</p>
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          {/* Правая — результат */}
+          <div className="flex flex-col gap-4 lg:w-80">
+
+            {/* Цены */}
+            <div className="rounded-2xl border border-foreground/10 bg-white/70 p-5 backdrop-blur-md">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-black/40">Итоговая стоимость</p>
+              <div className="mb-3 rounded-xl bg-foreground/5 p-4 text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-black/40">За 1 шт</p>
+                <p className="mt-1 text-4xl font-bold text-black">{fmt(pricePerPiece)} ₽</p>
+                <p className="text-xs text-black/40">материал + обработка</p>
+              </div>
+              <div className="rounded-xl border border-orange-400/30 bg-orange-50/50 p-4 text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-orange-500/70">Партия {quantity} шт</p>
+                <p className="mt-1 text-3xl font-bold text-orange-600">{fmt(totalBatch)} ₽</p>
+              </div>
+            </div>
+
+            {/* Детализация */}
+            <div className="rounded-2xl border border-foreground/10 bg-white/60 p-5 backdrop-blur-md">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-black/40">Детализация</p>
+              {[
+                ["⏱️ Базовое время (1 шт)", `${baseMin.toFixed(1)} мин`],
+                ["⚡ Время с коэф. (1 шт)", `${adjustedMin.toFixed(1)} мин`],
+                ["🏭 Ставка цеха", `${fmt(hourly)} ₽/ч`],
+                ["🔄 Наладка на партию", `${DEFAULT_SETUP_MIN} мин`],
+                ["📦 Материал (1 шт)", `${fmt(Math.round(materialCostPerPiece))} ₽`],
+                ["🔧 Оснастка (партия)", `${fmt(tooling)} ₽`],
+                ["🛠️ Обработка (1 шт)", `${fmt(machiningPerPiece)} ₽`],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between border-t border-foreground/8 py-2.5 text-sm">
+                  <span className="text-black/60">{label}</span>
+                  <span className="font-semibold text-black">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-center text-xs text-black/30">*Расчёт носит оценочный характер. Точное КП — после консультации с технологом.</p>
           </div>
         </div>
       </div>
@@ -268,32 +253,30 @@ export default function Calculator() {
   )
 }
 
-function Param({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div style={{ marginBottom: 24 }}>
-      <label style={{ display: "block", fontWeight: 600, color: "#ccddee", marginBottom: 10, fontSize: "0.85rem", letterSpacing: 0.3 }}>{label}</label>
+    <div className={className}>
+      <label className="mb-1.5 block text-xs font-medium text-black/50">{label}</label>
       {children}
     </div>
   )
 }
 
-function StyledSelect({ value, onChange, children }: { value: string | number; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; children: React.ReactNode }) {
+function CalcSelect({ value, onChange, children }: { value: string | number; onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void; children: React.ReactNode }) {
   return (
     <select
       value={value}
       onChange={onChange}
-      style={{ width: "100%", background: "#03050a", border: "1.5px solid #292e3a", padding: "14px 18px", borderRadius: 24, color: "#f0f3f8", fontSize: "0.9rem", outline: "none", cursor: "pointer" }}
-      onFocus={e => { e.currentTarget.style.borderColor = "#e03a1a"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(224,58,26,0.3)" }}
-      onBlur={e => { e.currentTarget.style.borderColor = "#292e3a"; e.currentTarget.style.boxShadow = "none" }}
+      className="w-full rounded-xl border border-foreground/15 bg-white/80 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 cursor-pointer"
     >
       {children}
     </select>
   )
 }
 
-function StyledInput({ type, value, onChange, disabled, placeholder, step, min }: {
-  type: string; value: number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  disabled?: boolean; placeholder?: string; step?: number; min?: number;
+function CalcInput({ type, value, onChange, disabled, step, min }: {
+  type: string; value: number; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean; step?: number; min?: number;
 }) {
   return (
     <input
@@ -301,31 +284,9 @@ function StyledInput({ type, value, onChange, disabled, placeholder, step, min }
       value={value}
       onChange={onChange}
       disabled={disabled}
-      placeholder={placeholder}
       step={step}
       min={min}
-      style={{ width: "100%", background: "#03050a", border: "1.5px solid #292e3a", padding: "14px 18px", borderRadius: 24, color: "#f0f3f8", fontSize: "0.9rem", outline: "none", opacity: disabled ? 0.5 : 1 }}
-      onFocus={e => { if (!disabled) { e.currentTarget.style.borderColor = "#e03a1a"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(224,58,26,0.3)" } }}
-      onBlur={e => { e.currentTarget.style.borderColor = "#292e3a"; e.currentTarget.style.boxShadow = "none" }}
+      className="w-full rounded-xl border border-foreground/15 bg-white/80 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-orange-400 focus:ring-2 focus:ring-orange-400/20 disabled:opacity-40"
     />
-  )
-}
-
-function PriceCard({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
-  return (
-    <div style={{ background: "linear-gradient(145deg,#10141e,#090c12)", borderRadius: 28, padding: "20px 16px", textAlign: "center", marginBottom: 24, borderBottom: `2px solid ${accent}` }}>
-      <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: 2, fontWeight: 600, color: "#ff734c" }}>{label}</div>
-      <div style={{ fontSize: "clamp(1.8rem,3vw,2.7rem)", fontWeight: 800, color: "white", lineHeight: 1.2, marginTop: 8, wordBreak: "break-word" }}>{value}</div>
-      <div style={{ fontSize: "0.7rem", color: "#8a99aa" }}>{sub}</div>
-    </div>
-  )
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "1px solid #1e222d", fontSize: "0.85rem" }}>
-      <span style={{ color: "#ccddee" }}>{label}</span>
-      <span style={{ color: "#ff7b58", fontWeight: 600 }}>{value}</span>
-    </div>
   )
 }
