@@ -5,6 +5,7 @@ import { ClientsSection } from "@/components/sections/clients-section"
 import { ContactSection } from "@/components/sections/contact-section"
 import { MagneticButton } from "@/components/magnetic-button"
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 const SECTIONS = ["Главная", "Работы", "Услуги", "О нас", "Контакты"]
 const SECTION_IDS = ["hero", "works", "services", "about", "contacts"]
@@ -12,6 +13,7 @@ const SECTION_IDS = ["hero", "works", "services", "about", "contacts"]
 export default function Index() {
   const [currentSection, setCurrentSection] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     setIsLoaded(true)
@@ -93,7 +95,10 @@ export default function Index() {
           ))}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex items-center gap-3">
+          <MagneticButton variant="secondary" onClick={() => navigate("/calculator")} className="md:px-6 md:py-2.5 md:text-sm">
+            Калькулятор
+          </MagneticButton>
           <MagneticButton variant="primary" onClick={() => scrollToSection(4)} className="md:px-6 md:py-2.5 md:text-sm">
             Связаться
           </MagneticButton>
