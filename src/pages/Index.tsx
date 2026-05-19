@@ -112,8 +112,16 @@ export default function Index() {
             <div className="absolute inset-0 bg-white/90" />
           </div>
           <div className="relative z-10 w-full">
-            <div className="mb-4 inline-block animate-in fade-in slide-in-from-bottom-4 rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md duration-700">
-              <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
+            <div className="mb-4 flex md:inline-block animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <button
+                onClick={() => navigate("/calculator")}
+                className="w-full md:hidden rounded-full border border-foreground/20 bg-foreground/10 px-4 py-2.5 backdrop-blur-md font-mono text-xs text-foreground/90 font-semibold hover:bg-foreground/15 transition-all"
+              >
+                Калькулятор токарных работ
+              </button>
+              <div className="hidden md:inline-block rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md">
+                <p className="font-mono text-xs text-foreground/90">Абакан · Металлообработка и металлоконструкции</p>
+              </div>
             </div>
             <h1 className="mb-6 w-full animate-in fade-in slide-in-from-bottom-8 font-sans text-2xl font-light leading-[1.1] tracking-tight text-black duration-1000 md:text-3xl lg:text-4xl text-center">
               <span className="text-balance">Металлообработка и Промышленное строительство</span>
