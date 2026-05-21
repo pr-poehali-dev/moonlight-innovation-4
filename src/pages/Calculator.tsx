@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MagneticButton } from "@/components/magnetic-button";
 import {
-  WorkType,
-  TurningSubtype,
-  ToothType,
-  ThreadType,
-  DrillItem,
   AdminSettings,
+  DrillItem,
+  KeywayItem,
+  GearItem,
+  ThreadItem,
+  FIELD_DEFAULTS,
   loadSettings,
+  saveSettings,
   getVolumeAndBaseTime,
 } from "./calculator/calculator.types";
 import CalculatorForm from "./calculator/CalculatorForm";
@@ -18,22 +19,19 @@ export default function Calculator() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AdminSettings>(loadSettings);
 
-  // Основные поля
-  const [workType, setWorkType] = useState<WorkType>("turning");
-  const [turningSubtype, setTurningSubtype] = useState<TurningSubtype>("shaft");
+  // Тип обработки / изделие
+  const [workTypeIdx, setWorkTypeIdx] = useState(0);
+  const [subtypeIdx, setSubtypeIdx] = useState(0);
+
+  // Материал
   const [materialIdx, setMaterialIdx] = useState(0);
   const [customerMaterial, setCustomerMaterial] = useState(false);
+
+  // Количество
   const [quantity, setQuantity] = useState(5);
 
-  // Размеры (единый словарь)
-  const [dims, setDims] = useState<Record<string, number>>({
-    diameter: 50, length: 100, holeDiameter: 0,
-    boltDiam: 10, boltLength: 50, boltPitch: 1.5, boltHeadHeight: 7, boltHeadDiam: 16,
-    studDiam: 10, studLength: 80, studPitch: 1.5,
-    nutDiam: 10, nutHeight: 8, nutWidth: 17,
-    lengthX: 100, widthY: 80, thicknessZ: 20, pocketVolume: 0,
-  });
-
+  // Размеры
+  const [dims, setDims] = useState<Record<string, number>>(FIELD_DEFAULTS);
   function setDim(key: string, val: number) {
     setDims((prev) => ({ ...prev, [key]: val }));
   }
@@ -41,28 +39,21 @@ export default function Calculator() {
   // Доп. операции
   const [extraDrilling, setExtraDrilling] = useState(false);
   const [drillItems, setDrillItems] = useState<DrillItem[]>([{ diam: 5, depth: 15, count: 2 }]);
+
   const [extraKeyway, setExtraKeyway] = useState(false);
-  const [keywayLength, setKeywayLength] = useState(30);
-  const [keywayWidth, setKeywayWidth] = useState(8);
-  const [keywayDepth, setKeywayDepth] = useState(4);
+  const [keywayItems, setKeywayItems] = useState<KeywayItem[]>([{ length: 30, width: 8, depth: 4 }]);
+
   const [extraGear, setExtraGear] = useState(false);
-  const [gearModule, setGearModule] = useState(2.5);
-  const [gearTeeth, setGearTeeth] = useState(20);
-  const [gearWidth, setGearWidth] = useState(25);
-  const [gearToothType, setGearToothType] = useState<ToothType>("straight");
+  const [gearItems, setGearItems] = useState<GearItem[]>([{ module: 2.5, teeth: 20, width: 25, type: "straight" }]);
+
   const [extraThreading, setExtraThreading] = useState(false);
-  const [threadType, setThreadType] = useState<ThreadType>("external");
-  const [threadDiam, setThreadDiam] = useState(16);
-  const [threadPitch, setThreadPitch] = useState(2);
-  const [threadLength, setThreadLength] = useState(30);
-  const [threadPasses, setThreadPasses] = useState(6);
+  const [threadItems, setThreadItems] = useState<ThreadItem[]>([{ type: "external", diam: 16, pitch: 2, length: 30, passes: 6 }]);
+
   const [extraLunette, setExtraLunette] = useState(false);
   const [extraReverse, setExtraReverse] = useState(false);
-  const [extraHardening, setExtraHardening] = useState(false);
-  const [extraCarburizing, setExtraCarburizing] = useState(false);
-  const [carburizingCost, setCarburizingCost] = useState(200);
-  const [extraOxidizing, setExtraOxidizing] = useState(false);
-  const [oxidizingCost, setOxidizingCost] = useState(150);
+
+  // Кастомные доп. операции { [id]: checked }
+  const [checkedExtraOps, setCheckedExtraOps] = useState<Record<string, boolean>>({});
 
   // Результат
   const [result, setResult] = useState<{
@@ -71,14 +62,19 @@ export default function Calculator() {
     details: Array<[string, string]>;
   } | null>(null);
 
-  // Админка
+  // Настройки (бывшая "Админка")
   const [adminOpen, setAdminOpen] = useState(false);
 
   function calculate() {
+    const wt = settings.workTypes[workTypeIdx];
+    if (!wt) return;
+    const hasSubtypes = wt.subtypes && wt.subtypes.length > 0;
+    const sub = hasSubtypes ? wt.subtypes[subtypeIdx] : undefined;
+    const activeFields = sub ? sub.fields : wt.fields;
+
     const mat = settings.materials[materialIdx] ?? settings.materials[0];
-    const { volume, baseMinutes } = getVolumeAndBaseTime(
-      workType, turningSubtype, dims, mat.factor
-    );
+    const { volume, baseMinutes } = getVolumeAndBaseTime(activeFields, dims, mat.factor);
+
     const massKg = (volume * mat.density) / 1000;
     const metalCost = customerMaterial ? 0 : massKg * mat.costPerKg;
 
@@ -86,8 +82,9 @@ export default function Calculator() {
     let complexityFactor = 1.0;
     let extraCostPerUnit = 0;
 
-    const dp = settings.drillParams;
+    // Сверление
     if (extraDrilling) {
+      const dp = settings.drillParams;
       drillItems.forEach(({ diam, depth, count }) => {
         if (diam > 0 && depth > 0 && count > 0) {
           const rpm = (1000 * dp.Vc) / (Math.PI * diam);
@@ -96,27 +93,42 @@ export default function Calculator() {
       });
     }
 
-    const kp = settings.keywayParams;
+    // Шпоночный паз
     if (extraKeyway) {
-      const passes = Math.ceil(keywayDepth / kp.ap);
-      const rpm = (1000 * kp.Vc) / (Math.PI * keywayWidth);
-      extraTimeMinutes += (keywayLength * passes) / (kp.fz * kp.z * rpm);
+      const kp = settings.keywayParams;
+      keywayItems.forEach(({ length, width, depth }) => {
+        if (length > 0 && width > 0 && depth > 0) {
+          const passes = Math.ceil(depth / kp.ap);
+          const rpm = (1000 * kp.Vc) / (Math.PI * width);
+          extraTimeMinutes += (length * passes) / (kp.fz * kp.z * rpm);
+        }
+      });
       complexityFactor += settings.extraFactors.keywayComplexity;
     }
 
-    const gp = settings.gearParams;
+    // Нарезание зубьев
     if (extraGear) {
-      const n_w = (1000 * gp.Vc) / (Math.PI * gearModule * gearTeeth);
-      const toothFactor = settings.extraFactors.toothFactors[gearToothType];
-      const gearTime = (gearWidth / (gp.S * n_w)) * gearTeeth * gp.passes * toothFactor;
-      extraTimeMinutes += gearTime;
-      complexityFactor += settings.extraFactors.gearBaseComplexity * toothFactor;
+      const gp = settings.gearParams;
+      gearItems.forEach(({ module, teeth, width, type }) => {
+        if (module > 0 && teeth > 0 && width > 0) {
+          const n_w = (1000 * gp.Vc) / (Math.PI * module * teeth);
+          const toothFactor = settings.extraFactors.toothFactors[type] || 1.0;
+          const gearTime = (width / (gp.S * n_w)) * teeth * gp.passes * toothFactor;
+          extraTimeMinutes += gearTime;
+          complexityFactor += settings.extraFactors.gearBaseComplexity * toothFactor;
+        }
+      });
     }
 
-    const tp = settings.threadParams;
-    if (extraThreading && threadDiam > 0 && threadPitch > 0 && threadLength > 0) {
-      const rpm = (1000 * tp.Vc) / (Math.PI * threadDiam);
-      extraTimeMinutes += (threadLength * threadPasses) / (threadPitch * rpm);
+    // Нарезание резьбы
+    if (extraThreading) {
+      const tp = settings.threadParams;
+      threadItems.forEach(({ diam, pitch, length, passes }) => {
+        if (diam > 0 && pitch > 0 && length > 0 && passes > 0) {
+          const rpm = (1000 * tp.Vc) / (Math.PI * diam);
+          extraTimeMinutes += (length * passes) / (pitch * rpm);
+        }
+      });
     }
 
     if (extraLunette) {
@@ -127,24 +139,31 @@ export default function Calculator() {
       extraTimeMinutes += settings.extraFactors.reverseTime;
       complexityFactor += settings.extraFactors.reverseComplexity;
     }
-    if (extraHardening) extraCostPerUnit += massKg * settings.hardeningCostPerKg;
-    if (extraCarburizing) extraCostPerUnit += carburizingCost;
-    if (extraOxidizing) extraCostPerUnit += oxidizingCost;
+
+    // Кастомные операции
+    settings.customExtraOps.forEach((op) => {
+      if (checkedExtraOps[op.id]) {
+        if (op.type === "cost") {
+          extraCostPerUnit += op.defaultCost;
+        } else if (op.type === "costPerKg") {
+          extraCostPerUnit += op.defaultCost * massKg;
+        }
+      }
+    });
 
     const totalMinutes = baseMinutes * complexityFactor + extraTimeMinutes;
     const totalHours = totalMinutes / 60;
     const qty = Math.max(1, quantity);
     const setupHours = settings.setupMinutes / 60;
-    const laborPerUnit =
-      totalHours * settings.hourlyRate + (setupHours * settings.hourlyRate) / qty;
+    const laborPerUnit = totalHours * settings.hourlyRate + (setupHours * settings.hourlyRate) / qty;
     const unitCost = metalCost + laborPerUnit + extraCostPerUnit;
     const totalCost = unitCost * qty;
 
     const details: Array<[string, string]> = [
-      ["⏱️ Базовое время (1 шт)", `${baseMinutes.toFixed(1)} мин`],
+      ["⏱️ Основное время (1 шт)", `${baseMinutes.toFixed(1)} мин`],
       ["⚙️ Коэф. сложности", complexityFactor.toFixed(2)],
       ["➕ Доп. время", `${extraTimeMinutes.toFixed(1)} мин`],
-      ["🕒 Итого время (1 шт)", `${totalMinutes.toFixed(1)} мин`],
+      ["🕒 Общее время (1 шт)", `${totalMinutes.toFixed(1)} мин`],
       ["🏭 Ставка цеха", `${settings.hourlyRate.toLocaleString("ru-RU")} ₽/ч`],
       ["🔧 Наладка на партию", `${settings.setupMinutes} мин`],
       [
@@ -168,7 +187,9 @@ export default function Calculator() {
 
   function handleSaveAdmin(updated: AdminSettings) {
     setSettings(updated);
-    localStorage.setItem("calcAdminSettings", JSON.stringify(updated));
+    saveSettings(updated);
+    if (workTypeIdx >= updated.workTypes.length) setWorkTypeIdx(0);
+    if (materialIdx >= updated.materials.length) setMaterialIdx(0);
   }
 
   return (
@@ -207,7 +228,7 @@ export default function Calculator() {
             onClick={() => setAdminOpen(true)}
             className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
           >
-            🔑 Админка
+            ⚙️ Настройки
           </button>
           <MagneticButton
             variant="secondary"
@@ -237,7 +258,7 @@ export default function Calculator() {
             </span>
           </div>
           <p className="mt-2 text-sm text-black/50">
-            Токарная · Фрезерная · Расчёт с учётом материала, операций и серийности
+            {settings.workTypes.map((w) => w.name).join(" · ")} · Расчёт с учётом материала, операций и серийности
           </p>
         </div>
 
@@ -245,10 +266,10 @@ export default function Calculator() {
           {/* Левая колонка — форма */}
           <CalculatorForm
             settings={settings}
-            workType={workType}
-            setWorkType={setWorkType}
-            turningSubtype={turningSubtype}
-            setTurningSubtype={setTurningSubtype}
+            workTypeIdx={workTypeIdx}
+            setWorkTypeIdx={(v) => { setWorkTypeIdx(v); setSubtypeIdx(0); }}
+            subtypeIdx={subtypeIdx}
+            setSubtypeIdx={setSubtypeIdx}
             materialIdx={materialIdx}
             setMaterialIdx={setMaterialIdx}
             customerMaterial={customerMaterial}
@@ -263,48 +284,22 @@ export default function Calculator() {
             setDrillItems={setDrillItems}
             extraKeyway={extraKeyway}
             setExtraKeyway={setExtraKeyway}
-            keywayLength={keywayLength}
-            setKeywayLength={setKeywayLength}
-            keywayWidth={keywayWidth}
-            setKeywayWidth={setKeywayWidth}
-            keywayDepth={keywayDepth}
-            setKeywayDepth={setKeywayDepth}
+            keywayItems={keywayItems}
+            setKeywayItems={setKeywayItems}
             extraGear={extraGear}
             setExtraGear={setExtraGear}
-            gearModule={gearModule}
-            setGearModule={setGearModule}
-            gearTeeth={gearTeeth}
-            setGearTeeth={setGearTeeth}
-            gearWidth={gearWidth}
-            setGearWidth={setGearWidth}
-            gearToothType={gearToothType}
-            setGearToothType={setGearToothType}
+            gearItems={gearItems}
+            setGearItems={setGearItems}
             extraThreading={extraThreading}
             setExtraThreading={setExtraThreading}
-            threadType={threadType}
-            setThreadType={setThreadType}
-            threadDiam={threadDiam}
-            setThreadDiam={setThreadDiam}
-            threadPitch={threadPitch}
-            setThreadPitch={setThreadPitch}
-            threadLength={threadLength}
-            setThreadLength={setThreadLength}
-            threadPasses={threadPasses}
-            setThreadPasses={setThreadPasses}
+            threadItems={threadItems}
+            setThreadItems={setThreadItems}
             extraLunette={extraLunette}
             setExtraLunette={setExtraLunette}
             extraReverse={extraReverse}
             setExtraReverse={setExtraReverse}
-            extraHardening={extraHardening}
-            setExtraHardening={setExtraHardening}
-            extraCarburizing={extraCarburizing}
-            setExtraCarburizing={setExtraCarburizing}
-            carburizingCost={carburizingCost}
-            setCarburizingCost={setCarburizingCost}
-            extraOxidizing={extraOxidizing}
-            setExtraOxidizing={setExtraOxidizing}
-            oxidizingCost={oxidizingCost}
-            setOxidizingCost={setOxidizingCost}
+            checkedExtraOps={checkedExtraOps}
+            setCheckedExtraOps={setCheckedExtraOps}
             onCalculate={calculate}
           />
 
@@ -355,7 +350,7 @@ export default function Calculator() {
         </div>
       </div>
 
-      {/* Модальное окно админки */}
+      {/* Модальное окно настроек */}
       <CalculatorAdminModal
         open={adminOpen}
         onClose={() => setAdminOpen(false)}

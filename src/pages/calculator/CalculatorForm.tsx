@@ -1,19 +1,23 @@
 import {
-  WorkType,
-  TurningSubtype,
-  ToothType,
-  ThreadType,
-  DrillItem,
   AdminSettings,
+  WorkTypeDef,
+  Subtype,
+  DrillItem,
+  KeywayItem,
+  GearItem,
+  ThreadItem,
+  CustomExtraOp,
+  FIELD_LABELS,
+  FIELD_DEFAULTS,
 } from "./calculator.types";
 import { Field, CalcSelect, CalcInput, Checkbox, Card } from "./calculator-ui";
 
 interface CalculatorFormProps {
   settings: AdminSettings;
-  workType: WorkType;
-  setWorkType: (v: WorkType) => void;
-  turningSubtype: TurningSubtype;
-  setTurningSubtype: (v: TurningSubtype) => void;
+  workTypeIdx: number;
+  setWorkTypeIdx: (v: number) => void;
+  subtypeIdx: number;
+  setSubtypeIdx: (v: number) => void;
   materialIdx: number;
   setMaterialIdx: (v: number) => void;
   customerMaterial: boolean;
@@ -28,57 +32,31 @@ interface CalculatorFormProps {
   setDrillItems: React.Dispatch<React.SetStateAction<DrillItem[]>>;
   extraKeyway: boolean;
   setExtraKeyway: (v: boolean) => void;
-  keywayLength: number;
-  setKeywayLength: (v: number) => void;
-  keywayWidth: number;
-  setKeywayWidth: (v: number) => void;
-  keywayDepth: number;
-  setKeywayDepth: (v: number) => void;
+  keywayItems: KeywayItem[];
+  setKeywayItems: React.Dispatch<React.SetStateAction<KeywayItem[]>>;
   extraGear: boolean;
   setExtraGear: (v: boolean) => void;
-  gearModule: number;
-  setGearModule: (v: number) => void;
-  gearTeeth: number;
-  setGearTeeth: (v: number) => void;
-  gearWidth: number;
-  setGearWidth: (v: number) => void;
-  gearToothType: ToothType;
-  setGearToothType: (v: ToothType) => void;
+  gearItems: GearItem[];
+  setGearItems: React.Dispatch<React.SetStateAction<GearItem[]>>;
   extraThreading: boolean;
   setExtraThreading: (v: boolean) => void;
-  threadType: ThreadType;
-  setThreadType: (v: ThreadType) => void;
-  threadDiam: number;
-  setThreadDiam: (v: number) => void;
-  threadPitch: number;
-  setThreadPitch: (v: number) => void;
-  threadLength: number;
-  setThreadLength: (v: number) => void;
-  threadPasses: number;
-  setThreadPasses: (v: number) => void;
+  threadItems: ThreadItem[];
+  setThreadItems: React.Dispatch<React.SetStateAction<ThreadItem[]>>;
   extraLunette: boolean;
   setExtraLunette: (v: boolean) => void;
   extraReverse: boolean;
   setExtraReverse: (v: boolean) => void;
-  extraHardening: boolean;
-  setExtraHardening: (v: boolean) => void;
-  extraCarburizing: boolean;
-  setExtraCarburizing: (v: boolean) => void;
-  carburizingCost: number;
-  setCarburizingCost: (v: number) => void;
-  extraOxidizing: boolean;
-  setExtraOxidizing: (v: boolean) => void;
-  oxidizingCost: number;
-  setOxidizingCost: (v: number) => void;
+  checkedExtraOps: Record<string, boolean>;
+  setCheckedExtraOps: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   onCalculate: () => void;
 }
 
 export default function CalculatorForm({
   settings,
-  workType,
-  setWorkType,
-  turningSubtype,
-  setTurningSubtype,
+  workTypeIdx,
+  setWorkTypeIdx,
+  subtypeIdx,
+  setSubtypeIdx,
   materialIdx,
   setMaterialIdx,
   customerMaterial,
@@ -93,142 +71,40 @@ export default function CalculatorForm({
   setDrillItems,
   extraKeyway,
   setExtraKeyway,
-  keywayLength,
-  setKeywayLength,
-  keywayWidth,
-  setKeywayWidth,
-  keywayDepth,
-  setKeywayDepth,
+  keywayItems,
+  setKeywayItems,
   extraGear,
   setExtraGear,
-  gearModule,
-  setGearModule,
-  gearTeeth,
-  setGearTeeth,
-  gearWidth,
-  setGearWidth,
-  gearToothType,
-  setGearToothType,
+  gearItems,
+  setGearItems,
   extraThreading,
   setExtraThreading,
-  threadType,
-  setThreadType,
-  threadDiam,
-  setThreadDiam,
-  threadPitch,
-  setThreadPitch,
-  threadLength,
-  setThreadLength,
-  threadPasses,
-  setThreadPasses,
+  threadItems,
+  setThreadItems,
   extraLunette,
   setExtraLunette,
   extraReverse,
   setExtraReverse,
-  extraHardening,
-  setExtraHardening,
-  extraCarburizing,
-  setExtraCarburizing,
-  carburizingCost,
-  setCarburizingCost,
-  extraOxidizing,
-  setExtraOxidizing,
-  oxidizingCost,
-  setOxidizingCost,
+  checkedExtraOps,
+  setCheckedExtraOps,
   onCalculate,
 }: CalculatorFormProps) {
-  function updateDrillItem(idx: number, field: keyof DrillItem, val: number) {
-    setDrillItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, [field]: val } : item))
-    );
-  }
+  const wt: WorkTypeDef | undefined = settings.workTypes[workTypeIdx];
+  const hasSubtypes = wt && wt.subtypes && wt.subtypes.length > 0;
+  const sub: Subtype | undefined = hasSubtypes ? wt.subtypes[subtypeIdx] : undefined;
+  const activeFields = sub ? sub.fields : wt?.fields ?? [];
 
-  function renderDimensionFields() {
-    if (workType === "milling") {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Field label="Длина X (мм)">
-            <CalcInput value={dims.lengthX} onChange={(e) => setDim("lengthX", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Ширина Y (мм)">
-            <CalcInput value={dims.widthY} onChange={(e) => setDim("widthY", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Толщина Z (мм)">
-            <CalcInput value={dims.thicknessZ} onChange={(e) => setDim("thicknessZ", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Выборки/карманы (см³)">
-            <CalcInput value={dims.pocketVolume} onChange={(e) => setDim("pocketVolume", +e.target.value)} min={0} />
-          </Field>
-        </div>
-      );
-    }
-    if (turningSubtype === "shaft") {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Field label="Диаметр заготовки (мм)">
-            <CalcInput value={dims.diameter} onChange={(e) => setDim("diameter", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Длина обработки (мм)">
-            <CalcInput value={dims.length} onChange={(e) => setDim("length", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Отверстие ⌀ (мм, 0 если нет)">
-            <CalcInput value={dims.holeDiameter} onChange={(e) => setDim("holeDiameter", +e.target.value)} min={0} />
-          </Field>
-        </div>
-      );
-    }
-    if (turningSubtype === "bolt") {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Field label="Диаметр резьбы (мм)">
-            <CalcInput value={dims.boltDiam} onChange={(e) => setDim("boltDiam", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Длина стержня (мм)">
-            <CalcInput value={dims.boltLength} onChange={(e) => setDim("boltLength", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Шаг резьбы (мм)">
-            <CalcInput value={dims.boltPitch} onChange={(e) => setDim("boltPitch", +e.target.value)} step={0.1} min={0.1} />
-          </Field>
-          <Field label="Высота головки (мм)">
-            <CalcInput value={dims.boltHeadHeight} onChange={(e) => setDim("boltHeadHeight", +e.target.value)} min={0} />
-          </Field>
-          <Field label="Диаметр головки (мм)">
-            <CalcInput value={dims.boltHeadDiam} onChange={(e) => setDim("boltHeadDiam", +e.target.value)} min={0} />
-          </Field>
-        </div>
-      );
-    }
-    if (turningSubtype === "stud") {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Field label="Диаметр резьбы (мм)">
-            <CalcInput value={dims.studDiam} onChange={(e) => setDim("studDiam", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Длина шпильки (мм)">
-            <CalcInput value={dims.studLength} onChange={(e) => setDim("studLength", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Шаг резьбы (мм)">
-            <CalcInput value={dims.studPitch} onChange={(e) => setDim("studPitch", +e.target.value)} step={0.1} min={0.1} />
-          </Field>
-        </div>
-      );
-    }
-    if (turningSubtype === "nut") {
-      return (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Field label="Диаметр резьбы (мм)">
-            <CalcInput value={dims.nutDiam} onChange={(e) => setDim("nutDiam", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Высота гайки (мм)">
-            <CalcInput value={dims.nutHeight} onChange={(e) => setDim("nutHeight", +e.target.value)} min={1} />
-          </Field>
-          <Field label="Размер под ключ (мм)">
-            <CalcInput value={dims.nutWidth} onChange={(e) => setDim("nutWidth", +e.target.value)} min={1} />
-          </Field>
-        </div>
-      );
-    }
-    return null;
+  function updateDrillItem<K extends keyof DrillItem>(idx: number, field: K, val: DrillItem[K]) {
+    setDrillItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
+  }
+  function updateKeywayItem<K extends keyof KeywayItem>(idx: number, field: K, val: KeywayItem[K]) {
+    setKeywayItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
+  }
+  function updateGearItem<K extends keyof GearItem>(idx: number, field: K, val: GearItem[K]) {
+    setGearItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
+  }
+  function updateThreadItem<K extends keyof ThreadItem>(idx: number, field: K, val: ThreadItem[K]) {
+    setThreadItems((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
   }
 
   return (
@@ -238,38 +114,30 @@ export default function CalculatorForm({
         <div className="grid grid-cols-2 gap-3">
           <Field label="Тип обработки">
             <CalcSelect
-              value={workType}
-              onChange={(e) => setWorkType(e.target.value as WorkType)}
+              value={workTypeIdx}
+              onChange={(e) => setWorkTypeIdx(+e.target.value)}
             >
-              <option value="turning">Токарная обработка</option>
-              <option value="milling">Фрезерная обработка</option>
+              {settings.workTypes.map((w, i) => (
+                <option key={w.id} value={i}>{w.name}</option>
+              ))}
             </CalcSelect>
           </Field>
           <Field label="Материал">
-            <CalcSelect
-              value={materialIdx}
-              onChange={(e) => setMaterialIdx(+e.target.value)}
-            >
+            <CalcSelect value={materialIdx} onChange={(e) => setMaterialIdx(+e.target.value)}>
               {settings.materials.map((m, i) => (
-                <option key={i} value={i}>
-                  {m.name} ({m.costPerKg} ₽/кг)
-                </option>
+                <option key={i} value={i}>{m.name}</option>
               ))}
             </CalcSelect>
           </Field>
         </div>
 
-        {workType === "turning" && (
+        {hasSubtypes && (
           <div className="mt-3">
             <Field label="Изделие">
-              <CalcSelect
-                value={turningSubtype}
-                onChange={(e) => setTurningSubtype(e.target.value as TurningSubtype)}
-              >
-                <option value="shaft">Вал / втулка</option>
-                <option value="bolt">Болт</option>
-                <option value="stud">Шпилька</option>
-                <option value="nut">Гайка</option>
+              <CalcSelect value={subtypeIdx} onChange={(e) => setSubtypeIdx(+e.target.value)}>
+                {wt.subtypes.map((st, i) => (
+                  <option key={st.id} value={i}>{st.name}</option>
+                ))}
               </CalcSelect>
             </Field>
           </div>
@@ -282,7 +150,21 @@ export default function CalculatorForm({
           label="Материал заказчика (давальческий)"
         />
 
-        {renderDimensionFields()}
+        {/* Динамические поля размеров */}
+        {activeFields.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            {activeFields.map((f) => (
+              <Field key={f} label={FIELD_LABELS[f] || f}>
+                <CalcInput
+                  value={dims[f] ?? FIELD_DEFAULTS[f] ?? 0}
+                  onChange={(e) => setDim(f, +e.target.value)}
+                  min={0}
+                  step={f.includes("Pitch") || f.includes("pitch") ? 0.1 : 1}
+                />
+              </Field>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4">
           <Field label="Количество в партии (шт.)">
@@ -305,55 +187,30 @@ export default function CalculatorForm({
       {/* Блок: доп. операции */}
       <Card title="Дополнительные операции" icon="➕">
         {/* Сверление */}
-        <Checkbox
-          id="extraDrilling"
-          checked={extraDrilling}
-          onChange={setExtraDrilling}
-          label="Сверление отверстий"
-        />
+        <Checkbox id="extraDrilling" checked={extraDrilling} onChange={setExtraDrilling} label="Сверление отверстий" />
         {extraDrilling && (
           <div className="mt-3 space-y-3">
             {drillItems.map((item, idx) => (
               <div key={idx} className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-end">
                 <Field label="Диаметр (мм)">
-                  <CalcInput
-                    value={item.diam}
-                    onChange={(e) => updateDrillItem(idx, "diam", +e.target.value)}
-                    step={0.1}
-                    min={0.1}
-                  />
+                  <CalcInput value={item.diam} onChange={(e) => updateDrillItem(idx, "diam", +e.target.value)} step={0.1} min={0.1} />
                 </Field>
                 <Field label="Глубина (мм)">
-                  <CalcInput
-                    value={item.depth}
-                    onChange={(e) => updateDrillItem(idx, "depth", +e.target.value)}
-                    step={0.1}
-                    min={0.1}
-                  />
+                  <CalcInput value={item.depth} onChange={(e) => updateDrillItem(idx, "depth", +e.target.value)} step={0.1} min={0.1} />
                 </Field>
                 <Field label="Количество">
-                  <CalcInput
-                    value={item.count}
-                    onChange={(e) => updateDrillItem(idx, "count", +e.target.value)}
-                    min={1}
-                  />
+                  <CalcInput value={item.count} onChange={(e) => updateDrillItem(idx, "count", +e.target.value)} min={1} />
                 </Field>
                 {drillItems.length > 1 && (
                   <button
-                    onClick={() =>
-                      setDrillItems((prev) => prev.filter((_, i) => i !== idx))
-                    }
+                    onClick={() => setDrillItems((prev) => prev.filter((_, i) => i !== idx))}
                     className="h-[44px] w-full rounded-xl bg-red-500 text-white font-bold text-lg hover:bg-red-600 transition"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </div>
             ))}
             <button
-              onClick={() =>
-                setDrillItems((prev) => [...prev, { diam: 5, depth: 15, count: 1 }])
-              }
+              onClick={() => setDrillItems((prev) => [...prev, { diam: 5, depth: 15, count: 1 }])}
               className="rounded-full border border-foreground/15 bg-white/80 px-4 py-1.5 text-xs font-semibold text-black/60 hover:bg-white transition"
             >
               ➕ Добавить отверстие
@@ -362,107 +219,131 @@ export default function CalculatorForm({
         )}
 
         {/* Шпоночный паз */}
-        <Checkbox
-          id="extraKeyway"
-          checked={extraKeyway}
-          onChange={setExtraKeyway}
-          label="Фрезерование шпоночного паза"
-        />
+        <Checkbox id="extraKeyway" checked={extraKeyway} onChange={setExtraKeyway} label="Фрезерование шпоночного паза" />
         {extraKeyway && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Field label="Длина паза (мм)">
-              <CalcInput value={keywayLength} onChange={(e) => setKeywayLength(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Ширина паза (мм)">
-              <CalcInput value={keywayWidth} onChange={(e) => setKeywayWidth(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Глубина паза (мм)">
-              <CalcInput value={keywayDepth} onChange={(e) => setKeywayDepth(+e.target.value)} step={0.1} min={0.1} />
-            </Field>
+          <div className="mt-3 space-y-3">
+            {keywayItems.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-end">
+                <Field label="Длина паза (мм)">
+                  <CalcInput value={item.length} onChange={(e) => updateKeywayItem(idx, "length", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Ширина паза (мм)">
+                  <CalcInput value={item.width} onChange={(e) => updateKeywayItem(idx, "width", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Глубина паза (мм)">
+                  <CalcInput value={item.depth} onChange={(e) => updateKeywayItem(idx, "depth", +e.target.value)} step={0.1} min={0.1} />
+                </Field>
+                {keywayItems.length > 1 && (
+                  <button
+                    onClick={() => setKeywayItems((prev) => prev.filter((_, i) => i !== idx))}
+                    className="h-[44px] w-full rounded-xl bg-red-500 text-white font-bold text-lg hover:bg-red-600 transition"
+                  >×</button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setKeywayItems((prev) => [...prev, { length: 30, width: 8, depth: 4 }])}
+              className="rounded-full border border-foreground/15 bg-white/80 px-4 py-1.5 text-xs font-semibold text-black/60 hover:bg-white transition"
+            >
+              ➕ Добавить паз
+            </button>
           </div>
         )}
 
         {/* Нарезание зубьев */}
-        <Checkbox
-          id="extraGear"
-          checked={extraGear}
-          onChange={setExtraGear}
-          label="Нарезание зубьев"
-        />
+        <Checkbox id="extraGear" checked={extraGear} onChange={setExtraGear} label="Нарезание зубьев" />
         {extraGear && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Field label="Модуль (мм)">
-              <CalcInput value={gearModule} onChange={(e) => setGearModule(+e.target.value)} step={0.1} min={0.1} />
-            </Field>
-            <Field label="Число зубьев">
-              <CalcInput value={gearTeeth} onChange={(e) => setGearTeeth(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Ширина венца (мм)">
-              <CalcInput value={gearWidth} onChange={(e) => setGearWidth(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Тип зуба">
-              <CalcSelect
-                value={gearToothType}
-                onChange={(e) => setGearToothType(e.target.value as ToothType)}
-              >
-                <option value="straight">Прямой</option>
-                <option value="helical">Косой</option>
-                <option value="hypoid">Гипоидный</option>
-              </CalcSelect>
-            </Field>
+          <div className="mt-3 space-y-3">
+            {gearItems.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-end">
+                <Field label="Модуль (мм)">
+                  <CalcInput value={item.module} onChange={(e) => updateGearItem(idx, "module", +e.target.value)} step={0.1} min={0.1} />
+                </Field>
+                <Field label="Число зубьев">
+                  <CalcInput value={item.teeth} onChange={(e) => updateGearItem(idx, "teeth", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Ширина венца (мм)">
+                  <CalcInput value={item.width} onChange={(e) => updateGearItem(idx, "width", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Тип зуба">
+                  <CalcSelect value={item.type} onChange={(e) => updateGearItem(idx, "type", e.target.value as GearItem["type"])}>
+                    <option value="straight">Прямой</option>
+                    <option value="helical">Косой</option>
+                    <option value="hypoid">Гипоидный</option>
+                  </CalcSelect>
+                </Field>
+                {gearItems.length > 1 && (
+                  <button
+                    onClick={() => setGearItems((prev) => prev.filter((_, i) => i !== idx))}
+                    className="h-[44px] w-full rounded-xl bg-red-500 text-white font-bold text-lg hover:bg-red-600 transition col-span-2 sm:col-span-1"
+                  >×</button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setGearItems((prev) => [...prev, { module: 2.5, teeth: 20, width: 25, type: "straight" }])}
+              className="rounded-full border border-foreground/15 bg-white/80 px-4 py-1.5 text-xs font-semibold text-black/60 hover:bg-white transition"
+            >
+              ➕ Добавить зубчатый венец
+            </button>
           </div>
         )}
 
         {/* Нарезание резьбы */}
-        <Checkbox
-          id="extraThreading"
-          checked={extraThreading}
-          onChange={setExtraThreading}
-          label="Нарезание резьбы"
-        />
+        <Checkbox id="extraThreading" checked={extraThreading} onChange={setExtraThreading} label="Нарезание резьбы" />
         {extraThreading && (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <Field label="Тип резьбы">
-              <CalcSelect value={threadType} onChange={(e) => setThreadType(e.target.value as ThreadType)}>
-                <option value="external">Наружная</option>
-                <option value="internal">Внутренняя</option>
-              </CalcSelect>
-            </Field>
-            <Field label="Диаметр резьбы (мм)">
-              <CalcInput value={threadDiam} onChange={(e) => setThreadDiam(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Шаг резьбы (мм)">
-              <CalcInput value={threadPitch} onChange={(e) => setThreadPitch(+e.target.value)} step={0.1} min={0.1} />
-            </Field>
-            <Field label="Длина резьбы (мм)">
-              <CalcInput value={threadLength} onChange={(e) => setThreadLength(+e.target.value)} min={1} />
-            </Field>
-            <Field label="Количество проходов">
-              <CalcInput value={threadPasses} onChange={(e) => setThreadPasses(+e.target.value)} min={1} />
-            </Field>
+          <div className="mt-3 space-y-3">
+            {threadItems.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-2 gap-2 sm:grid-cols-3 items-end">
+                <Field label="Тип резьбы">
+                  <CalcSelect value={item.type} onChange={(e) => updateThreadItem(idx, "type", e.target.value as ThreadItem["type"])}>
+                    <option value="external">Наружная</option>
+                    <option value="internal">Внутренняя</option>
+                  </CalcSelect>
+                </Field>
+                <Field label="Диаметр (мм)">
+                  <CalcInput value={item.diam} onChange={(e) => updateThreadItem(idx, "diam", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Шаг (мм)">
+                  <CalcInput value={item.pitch} onChange={(e) => updateThreadItem(idx, "pitch", +e.target.value)} step={0.1} min={0.1} />
+                </Field>
+                <Field label="Длина (мм)">
+                  <CalcInput value={item.length} onChange={(e) => updateThreadItem(idx, "length", +e.target.value)} min={1} />
+                </Field>
+                <Field label="Проходов">
+                  <CalcInput value={item.passes} onChange={(e) => updateThreadItem(idx, "passes", +e.target.value)} min={1} />
+                </Field>
+                {threadItems.length > 1 && (
+                  <button
+                    onClick={() => setThreadItems((prev) => prev.filter((_, i) => i !== idx))}
+                    className="h-[44px] w-full rounded-xl bg-red-500 text-white font-bold text-lg hover:bg-red-600 transition"
+                  >×</button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setThreadItems((prev) => [...prev, { type: "external", diam: 16, pitch: 2, length: 30, passes: 6 }])}
+              className="rounded-full border border-foreground/15 bg-white/80 px-4 py-1.5 text-xs font-semibold text-black/60 hover:bg-white transition"
+            >
+              ➕ Добавить резьбу
+            </button>
           </div>
         )}
 
-        {/* Прочие опции */}
+        {/* Люнет и кулачки */}
         <Checkbox id="extraLunette" checked={extraLunette} onChange={setExtraLunette} label="Использование люнета" />
         <Checkbox id="extraReverse" checked={extraReverse} onChange={setExtraReverse} label="Обратные кулачки" />
-        <Checkbox id="extraHardening" checked={extraHardening} onChange={setExtraHardening} label="Закалка" />
-        <Checkbox id="extraCarburizing" checked={extraCarburizing} onChange={setExtraCarburizing} label="Цементация" />
-        {extraCarburizing && (
-          <div className="mt-2">
-            <Field label="Стоимость цементации за 1 шт (₽)">
-              <CalcInput value={carburizingCost} onChange={(e) => setCarburizingCost(+e.target.value)} step={10} min={0} />
-            </Field>
-          </div>
-        )}
-        <Checkbox id="extraOxidizing" checked={extraOxidizing} onChange={setExtraOxidizing} label="Оксидирование" />
-        {extraOxidizing && (
-          <div className="mt-2">
-            <Field label="Стоимость оксидирования за 1 шт (₽)">
-              <CalcInput value={oxidizingCost} onChange={(e) => setOxidizingCost(+e.target.value)} step={10} min={0} />
-            </Field>
-          </div>
-        )}
+
+        {/* Кастомные доп. операции из настроек */}
+        {settings.customExtraOps.map((op: CustomExtraOp) => (
+          <Checkbox
+            key={op.id}
+            id={`extra_${op.id}`}
+            checked={!!checkedExtraOps[op.id]}
+            onChange={(v) => setCheckedExtraOps((prev) => ({ ...prev, [op.id]: v }))}
+            label={op.name}
+          />
+        ))}
       </Card>
     </div>
   );
