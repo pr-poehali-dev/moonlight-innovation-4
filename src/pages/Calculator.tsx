@@ -249,82 +249,78 @@ export default function Calculator() {
       </div>
 
       {/* Навигация */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-4 md:px-12">
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-0 transition-transform hover:scale-105"
-        >
-          <img
-            src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
-            alt="АЗОМ"
-            className="h-24 w-auto"
-          />
-          <img
-            src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/77df7b95-de84-41c1-91db-cba1516b2392.png"
-            alt="МайнингСтройСервис"
-            className="h-24 w-auto"
-            style={{ marginLeft: "-1.5cm" }}
-          />
-        </button>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Блок пользователя */}
+      <nav className="relative z-10 px-4 py-3 md:px-12 md:py-4">
+        {/* Строка 1: логотипы + кнопка «На сайт» */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center transition-transform hover:scale-105"
+          >
+            <img
+              src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/7b4ccbce-5c89-46bb-a8d2-35dd09ecdd32.png"
+              alt="АЗОМ"
+              className="h-14 w-auto md:h-24"
+            />
+            <img
+              src="https://cdn.poehali.dev/projects/d24e16a8-db41-4ec6-8e08-cb199b98c43e/bucket/77df7b95-de84-41c1-91db-cba1516b2392.png"
+              alt="МайнингСтройСервис"
+              className="h-14 w-auto md:h-24 -ml-4 md:-ml-6"
+            />
+          </button>
+          <MagneticButton
+            variant="secondary"
+            onClick={() => navigate("/")}
+            className="px-4 py-1.5 text-xs md:px-5 md:py-2 md:text-sm"
+          >
+            ← На сайт
+          </MagneticButton>
+        </div>
+
+        {/* Строка 2: кнопки пользователя и настроек */}
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
           {currentUser ? (
-            <div className="flex items-center gap-2">
-              <div className="rounded-full border border-gray-200 bg-white/80 px-3 py-1.5 backdrop-blur-md">
-                <p className="text-xs font-semibold text-gray-700">
+            <>
+              <div className="rounded-full border border-gray-200 bg-white/80 px-3 py-1.5 backdrop-blur-md min-w-0">
+                <p className="text-xs font-semibold text-gray-700 truncate max-w-[160px]">
                   👤 {currentUser.full_name || currentUser.email}
                 </p>
                 {currentUser.company && (
-                  <p className="text-xs text-gray-400">{currentUser.company}</p>
+                  <p className="text-xs text-gray-400 truncate max-w-[160px]">{currentUser.company}</p>
                 )}
               </div>
-              {syncStatus === "saving" && (
-                <span className="text-xs text-gray-400">Сохранение…</span>
-              )}
-              {syncStatus === "saved" && (
-                <span className="text-xs text-green-500">✓ Сохранено</span>
-              )}
-              {syncStatus === "error" && (
-                <span className="text-xs text-red-500">Ошибка сохранения</span>
-              )}
+              {syncStatus === "saving" && <span className="text-xs text-gray-400">Сохранение…</span>}
+              {syncStatus === "saved" && <span className="text-xs text-green-500">✓ Сохранено</span>}
+              {syncStatus === "error" && <span className="text-xs text-red-500">Ошибка</span>}
+              <button
+                onClick={() => setAdminOpen(true)}
+                className="rounded-full border border-gray-300 bg-white/60 px-3 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
+              >
+                ⚙️ Настройки
+              </button>
               <button
                 onClick={handleLogout}
                 className="rounded-full border border-gray-300 bg-white/60 px-3 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
               >
                 Выйти
               </button>
-            </div>
+            </>
           ) : (
-            <button
-              onClick={() => setAuthOpen(true)}
-              className="rounded-full border border-orange-300 bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-600 backdrop-blur-md transition hover:bg-orange-100"
-            >
-              👤 Войти / Зарегистрироваться
-            </button>
+            <>
+              <button
+                onClick={() => setAuthOpen(true)}
+                className="rounded-full border border-orange-300 bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-600 backdrop-blur-md transition hover:bg-orange-100"
+              >
+                👤 Войти / Зарегистрироваться
+              </button>
+              <button
+                onClick={() => setAuthOpen(true)}
+                className="rounded-full border border-gray-300 bg-white/60 px-3 py-1.5 text-xs font-semibold text-gray-400 backdrop-blur-md transition hover:bg-white"
+                title="Войдите, чтобы изменять настройки"
+              >
+                🔒 Настройки
+              </button>
+            </>
           )}
-          {currentUser ? (
-            <button
-              onClick={() => setAdminOpen(true)}
-              className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
-            >
-              ⚙️ Настройки
-            </button>
-          ) : (
-            <button
-              onClick={() => setAuthOpen(true)}
-              className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-400 backdrop-blur-md transition hover:bg-white cursor-pointer"
-              title="Войдите, чтобы изменять настройки"
-            >
-              🔒 Настройки
-            </button>
-          )}
-          <MagneticButton
-            variant="secondary"
-            onClick={() => navigate("/")}
-            className="px-5 py-2 text-sm"
-          >
-            ← На сайт
-          </MagneticButton>
         </div>
       </nav>
 
