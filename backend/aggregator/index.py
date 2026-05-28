@@ -83,7 +83,7 @@ DEFAULT_HTML = """<!DOCTYPE html>
             <div class="filter-row">
                 <div class="filter-group" style="flex: 2 1 180px;"><label>🔍 Поиск</label><input type="text" id="searchInput" placeholder="Название, описание..."></div>
                 <div class="filter-group"><label>Категория</label><select id="categoryFilter"><option value="">Все</option><option value="Металлообработка">Металлообработка</option><option value="СМР (строительно-монтажные работы)">СМР (строительно-монтажные работы)</option><option value="СМР и горное оборудование">СМР и горное оборудование</option></select></div>
-                <div class="filter-group"><label>Источник</label><select id="sourceFilter" multiple size="1"></select></div>
+                <div class="filter-group" style="flex: 2 1 180px; max-width: 180px;"><label>Источник</label><select id="sourceFilter" multiple size="1" style="width:100%;"></select></div>
                 <div class="filter-group"><label>Тип площадки</label><select id="platformTypeFilter"><option value="">Все</option><option value="tender">🏛️ Тендерные площадки</option><option value="social">💬 Соцсети и мессенджеры</option><option value="service">🔧 Сервисы заказов</option></select></div>
                 <div class="filter-group"><label>Обработка</label><select id="processingFilter" multiple size="1"></select></div>
                 <div class="filter-group"><label>Материал</label><select id="materialFilter" multiple size="1"></select></div>
