@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Icon from "@/components/ui/icon"
 
 const API_URL = "https://functions.poehali.dev/2bd7a9a0-3822-4e18-bdd8-38b4a107a4ab"
-const VISITS_URL = "https://functions.poehali.dev/9fc752ab-8d3d-4236-bc17-543820608736"
+
 const CALC_USERS_URL = "https://functions.poehali.dev/0a6ed799-bdd1-4e64-b0fc-a659b48ca233"
 const AGGREGATOR_URL = "https://functions.poehali.dev/0c756925-ed78-4b75-93b0-093a9032f2b0"
 
@@ -37,8 +37,6 @@ export default function Admin() {
   const [authError, setAuthError] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
-
-  const [visits, setVisits] = useState<{ total: number; unique: number; today: number; week: number } | null>(null)
 
   const [calcUsers, setCalcUsers] = useState<CalcUserRow[]>([])
   const [calcUsersLoading, setCalcUsersLoading] = useState(false)
@@ -94,14 +92,6 @@ export default function Admin() {
     setLoading(false)
   }
 
-  const loadVisits = async (t = token) => {
-    const res = await fetch(VISITS_URL, { headers: { "X-Admin-Token": t } })
-    if (res.ok) {
-      const data = await res.json()
-      setVisits(data)
-    }
-  }
-
   const loadCalcUsers = async (t = token) => {
     setCalcUsersLoading(true)
     const res = await fetch(`${CALC_USERS_URL}?action=users`, {
@@ -134,7 +124,7 @@ export default function Admin() {
   const handleLogin = async () => {
     setAuthError(false)
     const res = await fetch(API_URL, { headers: { "X-Admin-Token": token } })
-    if (res.ok) { setAuthed(true); loadProjects(token); loadVisits(token); loadCalcUsers(token) }
+    if (res.ok) { setAuthed(true); loadProjects(token); loadCalcUsers(token) }
     else setAuthError(true)
   }
 
@@ -220,26 +210,6 @@ export default function Admin() {
           <h1 className="font-sans text-2xl font-medium text-foreground">Управление галереей</h1>
           <a href="/" className="font-mono text-sm text-foreground/50 hover:text-orange-500">← На сайт</a>
         </div>
-
-        {/* Статистика посещений */}
-        {visits && (
-          <div className="mb-8 rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="mb-4 font-sans text-base font-medium text-foreground">Посещения</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {[
-                { label: "Всего", value: visits.total },
-                { label: "Уникальных", value: visits.unique },
-                { label: "За сегодня", value: visits.today },
-                { label: "За неделю", value: visits.week },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl border bg-gray-50 px-4 py-3 text-center">
-                  <p className="font-sans text-2xl font-semibold text-orange-500">{item.value}</p>
-                  <p className="font-mono text-xs text-foreground/50">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Форма добавления */}
         <div className="mb-8 rounded-2xl border bg-white p-6 shadow-sm">
