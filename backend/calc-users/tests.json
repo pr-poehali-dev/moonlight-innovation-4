@@ -1,0 +1,38 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Register new user",
+      "method": "POST",
+      "path": "/?action=register",
+      "body": {
+        "email": "test_calc_user@example.com",
+        "password": "test123",
+        "city": "Абакан",
+        "phone": "+7 900 000-00-00",
+        "company": "Тест",
+        "full_name": "Тестовый Пользователь"
+      },
+      "expectedStatus": 200,
+      "expectedBody": { "success": true },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Login existing user",
+      "method": "POST",
+      "path": "/?action=login",
+      "body": {
+        "email": "test_calc_user@example.com",
+        "password": "test123"
+      },
+      "expectedStatus": 200,
+      "expectedBody": { "success": true },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

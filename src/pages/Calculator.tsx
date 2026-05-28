@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MagneticButton } from "@/components/magnetic-button";
 import {
@@ -14,10 +14,28 @@ import {
 } from "./calculator/calculator.types";
 import CalculatorForm from "./calculator/CalculatorForm";
 import CalculatorAdminModal from "./calculator/CalculatorAdminModal";
+import CalculatorAuthModal, { CalcUser } from "./calculator/CalculatorAuthModal";
+
+const API = "https://functions.poehali.dev/0a6ed799-bdd1-4e64-b0fc-a659b48ca233";
+
+function loadUser(): { user: CalcUser; token: string } | null {
+  try {
+    const s = localStorage.getItem("calcUser");
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Calculator() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<AdminSettings>(loadSettings);
+
+  // Авторизация пользователя
+  const [authOpen, setAuthOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CalcUser | null>(() => loadUser()?.user ?? null);
+  const [currentToken, setCurrentToken] = useState<string | null>(() => loadUser()?.token ?? null);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Тип обработки / изделие
   const [workTypeIdx, setWorkTypeIdx] = useState(0);
@@ -39,20 +57,14 @@ export default function Calculator() {
   // Доп. операции
   const [extraDrilling, setExtraDrilling] = useState(false);
   const [drillItems, setDrillItems] = useState<DrillItem[]>([{ diam: 5, depth: 15, count: 2 }]);
-
   const [extraKeyway, setExtraKeyway] = useState(false);
   const [keywayItems, setKeywayItems] = useState<KeywayItem[]>([{ length: 30, width: 8, depth: 4 }]);
-
   const [extraGear, setExtraGear] = useState(false);
   const [gearItems, setGearItems] = useState<GearItem[]>([{ module: 2.5, teeth: 20, width: 25, type: "straight" }]);
-
   const [extraThreading, setExtraThreading] = useState(false);
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([{ type: "external", diam: 16, pitch: 2, length: 30, passes: 6 }]);
-
   const [extraLunette, setExtraLunette] = useState(false);
   const [extraReverse, setExtraReverse] = useState(false);
-
-  // Кастомные доп. операции { [id]: checked }
   const [checkedExtraOps, setCheckedExtraOps] = useState<Record<string, boolean>>({});
 
   // Результат
@@ -62,8 +74,60 @@ export default function Calculator() {
     details: Array<[string, string]>;
   } | null>(null);
 
-  // Настройки (бывшая "Админка")
+  // Модалки
   const [adminOpen, setAdminOpen] = useState(false);
+
+  // При логине — загружаем настройки пользователя с сервера
+  useEffect(() => {
+    if (currentUser) {
+      fetch(`${API}?action=settings&user_id=${currentUser.id}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.settings) {
+            setSettings(data.settings as AdminSettings);
+            saveSettings(data.settings as AdminSettings);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentUser]);
+
+  function handleLogin(user: CalcUser, token: string) {
+    setCurrentUser(user);
+    setCurrentToken(token);
+    localStorage.setItem("calcUser", JSON.stringify({ user, token }));
+  }
+
+  function handleLogout() {
+    setCurrentUser(null);
+    setCurrentToken(null);
+    localStorage.removeItem("calcUser");
+    // Вернуть настройки из localStorage
+    setSettings(loadSettings());
+  }
+
+  async function handleSaveAdmin(updated: AdminSettings) {
+    setSettings(updated);
+    saveSettings(updated);
+    if (workTypeIdx >= updated.workTypes.length) setWorkTypeIdx(0);
+    if (materialIdx >= updated.materials.length) setMaterialIdx(0);
+
+    // Синхронизировать с сервером если залогинен
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const res = await fetch(`${API}?action=settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentUser.id, settings: updated }),
+        });
+        setSyncStatus(res.ok ? "saved" : "error");
+      } catch {
+        setSyncStatus("error");
+      }
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
+  }
 
   function calculate() {
     const wt = settings.workTypes[workTypeIdx];
@@ -82,7 +146,6 @@ export default function Calculator() {
     let complexityFactor = 1.0;
     let extraCostPerUnit = 0;
 
-    // Сверление
     if (extraDrilling) {
       const dp = settings.drillParams;
       drillItems.forEach(({ diam, depth, count }) => {
@@ -93,7 +156,6 @@ export default function Calculator() {
       });
     }
 
-    // Шпоночный паз
     if (extraKeyway) {
       const kp = settings.keywayParams;
       keywayItems.forEach(({ length, width, depth }) => {
@@ -106,7 +168,6 @@ export default function Calculator() {
       complexityFactor += settings.extraFactors.keywayComplexity;
     }
 
-    // Нарезание зубьев
     if (extraGear) {
       const gp = settings.gearParams;
       gearItems.forEach(({ module, teeth, width, type }) => {
@@ -120,7 +181,6 @@ export default function Calculator() {
       });
     }
 
-    // Нарезание резьбы
     if (extraThreading) {
       const tp = settings.threadParams;
       threadItems.forEach(({ diam, pitch, length, passes }) => {
@@ -140,14 +200,10 @@ export default function Calculator() {
       complexityFactor += settings.extraFactors.reverseComplexity;
     }
 
-    // Кастомные операции
     settings.customExtraOps.forEach((op) => {
       if (checkedExtraOps[op.id]) {
-        if (op.type === "cost") {
-          extraCostPerUnit += op.defaultCost;
-        } else if (op.type === "costPerKg") {
-          extraCostPerUnit += op.defaultCost * massKg;
-        }
+        if (op.type === "cost") extraCostPerUnit += op.defaultCost;
+        else if (op.type === "costPerKg") extraCostPerUnit += op.defaultCost * massKg;
       }
     });
 
@@ -168,9 +224,7 @@ export default function Calculator() {
       ["🔧 Наладка на партию", `${settings.setupMinutes} мин`],
       [
         "🧱 Материал (1 шт)",
-        customerMaterial
-          ? "заказчика (0 ₽)"
-          : `${Math.round(metalCost).toLocaleString("ru-RU")} ₽`,
+        customerMaterial ? "заказчика (0 ₽)" : `${Math.round(metalCost).toLocaleString("ru-RU")} ₽`,
       ],
       ["🛠️ Обработка (1 шт)", `${Math.round(laborPerUnit).toLocaleString("ru-RU")} ₽`],
     ];
@@ -178,18 +232,7 @@ export default function Calculator() {
       details.push(["🔥 Доп. услуги (1 шт)", `${Math.round(extraCostPerUnit).toLocaleString("ru-RU")} ₽`]);
     }
 
-    setResult({
-      pricePerUnit: Math.round(unitCost),
-      totalPrice: Math.round(totalCost),
-      details,
-    });
-  }
-
-  function handleSaveAdmin(updated: AdminSettings) {
-    setSettings(updated);
-    saveSettings(updated);
-    if (workTypeIdx >= updated.workTypes.length) setWorkTypeIdx(0);
-    if (materialIdx >= updated.materials.length) setMaterialIdx(0);
+    setResult({ pricePerUnit: Math.round(unitCost), totalPrice: Math.round(totalCost), details });
   }
 
   return (
@@ -223,7 +266,42 @@ export default function Calculator() {
             style={{ marginLeft: "-1.5cm" }}
           />
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Блок пользователя */}
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              <div className="rounded-full border border-gray-200 bg-white/80 px-3 py-1.5 backdrop-blur-md">
+                <p className="text-xs font-semibold text-gray-700">
+                  👤 {currentUser.full_name || currentUser.email}
+                </p>
+                {currentUser.company && (
+                  <p className="text-xs text-gray-400">{currentUser.company}</p>
+                )}
+              </div>
+              {syncStatus === "saving" && (
+                <span className="text-xs text-gray-400">Сохранение…</span>
+              )}
+              {syncStatus === "saved" && (
+                <span className="text-xs text-green-500">✓ Сохранено</span>
+              )}
+              {syncStatus === "error" && (
+                <span className="text-xs text-red-500">Ошибка сохранения</span>
+              )}
+              <button
+                onClick={handleLogout}
+                className="rounded-full border border-gray-300 bg-white/60 px-3 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
+              >
+                Выйти
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAuthOpen(true)}
+              className="rounded-full border border-orange-300 bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-600 backdrop-blur-md transition hover:bg-orange-100"
+            >
+              👤 Войти / Зарегистрироваться
+            </button>
+          )}
           <button
             onClick={() => setAdminOpen(true)}
             className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
@@ -242,7 +320,6 @@ export default function Calculator() {
 
       {/* Контент */}
       <div className="relative z-10 px-6 pb-16 md:px-12">
-        {/* Заголовок */}
         <div className="mb-8">
           <div className="mb-4 inline-block rounded-full border border-foreground/20 bg-foreground/10 px-4 py-1.5 backdrop-blur-md">
             <p className="font-mono text-xs text-foreground/90">
@@ -260,10 +337,23 @@ export default function Calculator() {
           <p className="mt-2 text-sm text-black/50">
             {settings.workTypes.map((w) => w.name).join(" · ")} · Расчёт с учётом материала, операций и серийности
           </p>
+          {/* Баннер для незалогиненных */}
+          {!currentUser && (
+            <div
+              onClick={() => setAuthOpen(true)}
+              className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-3 backdrop-blur-md transition hover:bg-orange-100/80"
+            >
+              <span className="text-xl">💾</span>
+              <div>
+                <p className="text-sm font-semibold text-orange-700">Сохраните настройки в аккаунте</p>
+                <p className="text-xs text-orange-500">Зарегистрируйтесь, чтобы ставки и материалы сохранялись на сервере</p>
+              </div>
+              <span className="ml-auto text-xs font-bold text-orange-500">Войти →</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-          {/* Левая колонка — форма */}
           <CalculatorForm
             settings={settings}
             workTypeIdx={workTypeIdx}
@@ -303,7 +393,6 @@ export default function Calculator() {
             onCalculate={calculate}
           />
 
-          {/* Правая колонка — результат */}
           <div className="flex flex-col gap-4 lg:w-80">
             {result ? (
               <div className="rounded-2xl border border-foreground/10 bg-black p-5 text-white">
@@ -324,9 +413,7 @@ export default function Calculator() {
                     </p>
                   </div>
                 </div>
-
                 <hr className="my-4 border-white/10" />
-
                 <div className="space-y-1.5">
                   {result.details.map(([label, value]) => (
                     <div key={label} className="flex justify-between text-sm">
@@ -335,10 +422,8 @@ export default function Calculator() {
                     </div>
                   ))}
                 </div>
-
                 <p className="mt-4 text-xs text-white/30">
-                  *Расчёт носит оценочный характер. Цены указаны с НДС.
-                  Точное КП — после консультации с технологом.
+                  *Расчёт носит оценочный характер. Цены указаны с НДС. Точное КП — после консультации с технологом.
                 </p>
               </div>
             ) : (
@@ -350,12 +435,17 @@ export default function Calculator() {
         </div>
       </div>
 
-      {/* Модальное окно настроек */}
       <CalculatorAdminModal
         open={adminOpen}
         onClose={() => setAdminOpen(false)}
         settings={settings}
         onSave={handleSaveAdmin}
+      />
+
+      <CalculatorAuthModal
+        open={authOpen}
+        onClose={() => setAuthOpen(false)}
+        onLogin={handleLogin}
       />
     </div>
   );
