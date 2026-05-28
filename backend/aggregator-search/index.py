@@ -1,10 +1,11 @@
 """
-Поиск заказов через открытые источники + Serper/OpenAI если ключи добавлены:
-- zakupki.gov.ru (госзакупки 44-ФЗ + 223-ФЗ)
-- metallportal.com, metalloobrabotchiki.ru, rusmet.ru (RSS металл)
-- fabrikant.ru, b2b-center.ru, roseltorg.ru, bicotender.ru, tenders.ru (RSS тендеры)
-- tiu.ru, pulscen.ru, all.biz, torgiplaza.ru (доски объявлений)
-- Serper.dev Google Search + OpenAI фильтрация (если ключи в секретах)
+Поиск реальных тендеров через открытые API без ключей:
+- zakupki.gov.ru (госзакупки 44-ФЗ + 223-ФЗ) — конкретные закупки с номерами
+- metallportal.com, metalloobrabotchiki.ru (RSS — конкретные заявки)
+- fabrikant.ru, b2b-center.ru, roseltorg.ru (RSS тендеры с ID)
+- tendermedia.ru, bicotender.ru (агрегаторы тендеров)
+- Serper.dev — поиск только по тендерным площадкам (если SERPER_API_KEY задан)
+- OpenAI — финальная фильтрация (если OPENAI_API_KEY задан)
 """
 import json
 import os
@@ -87,6 +88,11 @@ def fetch_rss(host, path, use_https=True, timeout=8):
         return []
 
 
+CATALOG_URL = re.compile(
+    r'(category|tags?|/search\?|catalog|tendery-na|zakupki-na|/results|/list|/extendedsearch|page=)',
+    re.IGNORECASE
+)
+
 def rss_to_orders(items, source, category, platform, limit=15):
     results = []
     for item in items[:limit]:
@@ -95,6 +101,9 @@ def rss_to_orders(items, source, category, platform, limit=15):
         desc = (item.findtext("description") or "").strip()
         pub = (item.findtext("pubDate") or "")[:10]
         if not title or not link:
+            continue
+        # Пропускаем страницы-каталоги без конкретного ID тендера
+        if CATALOG_URL.search(link):
             continue
         results.append(make_order(source, title, link, desc, published=pub, category=category, platform=platform))
     return results
@@ -279,19 +288,31 @@ def src_torgiplaza(query):
 # ─── Serper.dev + OpenAI ──────────────────────────────────────────────────────
 
 def src_serper(query: str) -> list:
-    """Поиск через Google (Serper.dev) — работает если SERPER_API_KEY задан."""
+    """Поиск только по тендерным площадкам через Serper.dev (если SERPER_API_KEY задан)."""
     api_key = os.environ.get("SERPER_API_KEY", "")
     if not api_key:
         return []
 
-    results = []
-    # Несколько целевых запросов для охвата разных площадок
+    # Только конкретные тендерные площадки — без досок объявлений и каталогов
+    tender_sites = (
+        "site:zakupki.gov.ru OR site:fabrikant.ru OR site:b2b-center.ru "
+        "OR site:roseltorg.ru OR site:tendermedia.ru OR site:metallportal.com "
+        "OR site:tender.pro OR site:zakupki.kontur.ru OR site:sberbank-ast.ru"
+    )
     queries = [
-        f"{query} заказ тендер металлообработка",
-        f"{query} закупка site:fabrikant.ru OR site:b2b-center.ru OR site:zakupki.gov.ru",
-        f"{query} объявление avito OR tiu.ru OR pulscen.ru",
+        f"{query} тендер закупка {tender_sites}",
+        f"{query} изготовление поставка {tender_sites}",
     ]
+
+    results = []
     seen = set()
+
+    # Паттерны URL страниц-каталогов — отсеиваем
+    CATALOG_PATTERNS = re.compile(
+        r'(category|tags?|search|catalog|list|tendery-na|zakupki-na|/results|/extendedsearch)',
+        re.IGNORECASE
+    )
+
     for q in queries:
         try:
             payload = json.dumps({"q": q, "gl": "ru", "hl": "ru", "num": 10})
@@ -304,6 +325,12 @@ def src_serper(query: str) -> list:
                 link = item.get("link", "")
                 if not link or link in seen:
                     continue
+                # Пропускаем страницы-каталоги без конкретного ID
+                if CATALOG_PATTERNS.search(link):
+                    continue
+                # Требуем числовой ID в URL (реальный тендер)
+                if not re.search(r'\d{4,}', link):
+                    continue
                 seen.add(link)
                 source = item.get("displayLink", link)
                 results.append(make_order(
@@ -311,9 +338,9 @@ def src_serper(query: str) -> list:
                     item.get("title", "")[:120],
                     link,
                     item.get("snippet", "")[:300],
-                    proc_type="Металлообработка / Тендер",
+                    proc_type="Тендер",
                     category="Металлообработка",
-                    platform="service",
+                    platform="tender",
                 ))
         except Exception:
             pass
@@ -378,20 +405,15 @@ def openai_filter(query: str, results: list) -> list:
 # ─── Handler ──────────────────────────────────────────────────────────────────
 
 SOURCES = [
-    src_metallportal,
-    src_metalloobrabotchiki,
-    src_rusmet,
-    src_tiu,
-    src_pulscen,
-    src_fabrikant,
-    src_b2b_center,
-    src_roseltorg,
-    src_bicotender,
-    src_tenders_ru,
-    src_zakupki_gov,
-    src_all_biz,
-    src_torgiplaza,
-    src_serper,  # включается автоматически при наличии SERPER_API_KEY
+    src_metallportal,       # RSS конкретных заявок
+    src_metalloobrabotchiki,# RSS конкретных заказов
+    src_fabrikant,          # RSS тендеров с ID
+    src_b2b_center,         # RSS тендеров с ID
+    src_roseltorg,          # RSS госзакупок
+    src_bicotender,         # RSS тендеров
+    src_tenders_ru,         # RSS госзакупок
+    src_zakupki_gov,        # API госзакупок — самый надёжный источник
+    src_serper,             # Google по тендерным площадкам (если SERPER_API_KEY)
 ]
 
 
@@ -410,7 +432,7 @@ def handler(event: dict, context) -> dict:
     seen_urls = set()
 
     # Параллельный запрос ко всем источникам
-    with ThreadPoolExecutor(max_workers=14) as ex:
+    with ThreadPoolExecutor(max_workers=9) as ex:
         futures = {ex.submit(src, query): src.__name__ for src in SOURCES}
         for future in as_completed(futures):
             try:
