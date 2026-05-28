@@ -302,12 +302,22 @@ export default function Calculator() {
               👤 Войти / Зарегистрироваться
             </button>
           )}
-          <button
-            onClick={() => setAdminOpen(true)}
-            className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
-          >
-            ⚙️ Настройки
-          </button>
+          {currentUser ? (
+            <button
+              onClick={() => setAdminOpen(true)}
+              className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-500 backdrop-blur-md transition hover:bg-white hover:text-gray-800"
+            >
+              ⚙️ Настройки
+            </button>
+          ) : (
+            <button
+              onClick={() => setAuthOpen(true)}
+              className="rounded-full border border-gray-300 bg-white/60 px-4 py-1.5 text-xs font-semibold text-gray-400 backdrop-blur-md transition hover:bg-white cursor-pointer"
+              title="Войдите, чтобы изменять настройки"
+            >
+              🔒 Настройки
+            </button>
+          )}
           <MagneticButton
             variant="secondary"
             onClick={() => navigate("/")}
@@ -343,12 +353,12 @@ export default function Calculator() {
               onClick={() => setAuthOpen(true)}
               className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-3 backdrop-blur-md transition hover:bg-orange-100/80"
             >
-              <span className="text-xl">💾</span>
+              <span className="text-xl">🔒</span>
               <div>
-                <p className="text-sm font-semibold text-orange-700">Сохраните настройки в аккаунте</p>
-                <p className="text-xs text-orange-500">Зарегистрируйтесь, чтобы ставки и материалы сохранялись на сервере</p>
+                <p className="text-sm font-semibold text-orange-700">Настройки доступны после входа</p>
+                <p className="text-xs text-orange-500">Войдите или зарегистрируйтесь, чтобы настроить ставки, материалы и типы изделий под себя</p>
               </div>
-              <span className="ml-auto text-xs font-bold text-orange-500">Войти →</span>
+              <span className="ml-auto shrink-0 text-xs font-bold text-orange-500">Войти →</span>
             </div>
           )}
         </div>
