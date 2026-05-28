@@ -70,7 +70,7 @@ DEFAULT_HTML = """<!DOCTYPE html>
         .comment-textarea, .contact-textarea { width: 100%; padding: 0.35rem; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; font-size: 0.8rem; resize: vertical; min-height: 50px; }
         .email-textarea { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; font-size: 0.8rem; resize: vertical; min-height: 150px; }
         .button-group { display: flex; gap: 0.4rem; margin-top: 0.75rem; }
-        #resetStorageBtn { background: #8b4513; }
+
     </style>
 </head>
 <body>
@@ -95,8 +95,6 @@ DEFAULT_HTML = """<!DOCTYPE html>
                 <div class="filter-group" style="max-width: 130px;"><label>Статус</label><select id="userStatusFilter"><option value="">Все</option></select></div>
                 <div class="filter-group" style="max-width: 120px;"><label>Режим</label><select id="viewModeFilter"><option value="all">Все</option><option value="favorites">Избранные</option><option value="archive">Архив</option></select></div>
                 <button class="btn" id="searchNewBtn" style="background:#1677ff;">🔍 Поиск</button>
-                <button class="btn" id="resetBtn">↺ Сброс</button>
-                <button class="btn" id="resetStorageBtn" title="Очистить кэш и загрузить свежие заказы">🗑️ Сбросить кэш</button>
                 <button class="btn" id="companySettingsBtn" style="background:#722ed1;">⚙️ Компания</button>
             </div>
         </div>
@@ -420,22 +418,6 @@ DEFAULT_HTML = """<!DOCTYPE html>
         document.getElementById('deadlineTo').addEventListener('change', () => { currentPage = 1; renderTable(); });
         document.getElementById('userStatusFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
         document.getElementById('viewModeFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
-        document.getElementById('resetBtn').addEventListener('click', () => {
-            document.getElementById('searchInput').value = ''; document.getElementById('categoryFilter').value = ''; document.getElementById('platformTypeFilter').value = '';
-            ['sourceFilter','processingFilter','materialFilter','regionFilter'].forEach(id => document.getElementById(id).selectedIndex = -1);
-            document.getElementById('priceFrom').value = ''; document.getElementById('priceTo').value = '';
-            document.getElementById('deadlineFrom').value = ''; document.getElementById('deadlineTo').value = '';
-            document.getElementById('userStatusFilter').value = ''; document.getElementById('viewModeFilter').value = 'all';
-            currentPage = 1; renderTable();
-        });
-        document.getElementById('resetStorageBtn').addEventListener('click', () => {
-            localStorage.removeItem('metal_orders_data_v14');
-            ordersData = loadOrders();
-            refreshSelects();
-            currentPage = 1;
-            renderTable();
-            alert('Кэш очищен! Загружены свежие заказы.');
-        });
         document.getElementById('companySettingsBtn').addEventListener('click', openCompanySettings);
 
         // ===== РЕАЛЬНЫЙ ПОИСК ПО ПЛОЩАДКАМ =====
