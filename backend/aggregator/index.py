@@ -440,44 +440,68 @@ DEFAULT_HTML = """<!DOCTYPE html>
         // ===== РЕАЛЬНЫЙ ПОИСК ПО ПЛОЩАДКАМ =====
         const SEARCH_API = 'https://functions.poehali.dev/63646839-5642-4afa-827b-d771c8294f21';
 
-        document.getElementById('searchNewBtn').addEventListener('click', async () => {
-            const query = document.getElementById('searchInput').value.trim();
-            const category = document.getElementById('categoryFilter').value;
-            if (!query) { alert('Введите текст для поиска'); return; }
+        // Запросы по всем трём категориям
+        const AUTO_QUERIES = [
+            { query: 'металлообработка токарные фрезерные работы изготовление деталей', category: 'all' },
+            { query: 'металлообработка заказ тендер закупка запчасти', category: 'all' },
+            { query: 'строительно-монтажные работы СМР подряд субподряд', category: 'all' },
+            { query: 'строительство монтаж тендер закупка', category: 'all' },
+            { query: 'горное оборудование горнодобывающее запчасти дробилка конвейер экскаватор', category: 'all' },
+            { query: 'горное оборудование ремонт поставка тендер', category: 'all' },
+        ];
 
+        async function runSearch(queries) {
             const btn = document.getElementById('searchNewBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Ищу...';
 
-            try {
-                const res = await fetch(SEARCH_API, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, category: category || 'all' }),
-                });
-                const data = await res.json();
-                if (data.error) { alert('Ошибка: ' + data.error); return; }
+            let totalAdded = 0;
+            const existingUrls = new Set(ordersData.map(o => o.url));
 
-                const newOrders = data.results || [];
-                if (newOrders.length === 0) { alert('По запросу «' + query + '» ничего не найдено на площадках.'); return; }
+            for (let i = 0; i < queries.length; i++) {
+                const { query, category } = queries[i];
+                btn.textContent = '⏳ ' + (i + 1) + '/' + queries.length + '...';
+                try {
+                    const res = await fetch(SEARCH_API, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query, category }),
+                    });
+                    const data = await res.json();
+                    const newOrders = data.results || [];
+                    const added = newOrders.filter(o => o.url && !existingUrls.has(o.url));
+                    added.forEach(o => existingUrls.add(o.url));
+                    if (added.length > 0) {
+                        ordersData = [...added, ...ordersData];
+                        totalAdded += added.length;
+                    }
+                } catch (e) { /* пропускаем ошибку одного запроса */ }
+            }
 
-                // Добавляем только новые (которых ещё нет по url)
-                const existingUrls = new Set(ordersData.map(o => o.url));
-                const added = newOrders.filter(o => o.url && !existingUrls.has(o.url));
+            saveOrders();
+            refreshSelects();
+            currentPage = 1;
+            renderTable();
+            btn.disabled = false;
+            btn.textContent = '🔍 Поиск';
 
-                if (added.length === 0) { alert('Новых заказов не найдено — все уже есть в таблице.'); return; }
+            if (totalAdded > 0) {
+                alert('✅ Найдено и добавлено ' + totalAdded + ' новых тендеров и заявок!');
+            } else {
+                alert('Новых заказов не найдено — все уже есть в таблице.');
+            }
+        }
 
-                ordersData = [...added, ...ordersData];
-                saveOrders();
-                refreshSelects();
-                currentPage = 1;
-                renderTable();
-                alert('✅ Найдено и добавлено ' + added.length + ' новых заказов с площадок!');
-            } catch (e) {
-                alert('Ошибка соединения с сервером поиска.');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🔍 Поиск';
+        document.getElementById('searchNewBtn').addEventListener('click', async () => {
+            const manualQuery = document.getElementById('searchInput').value.trim();
+            const category = document.getElementById('categoryFilter').value;
+
+            if (manualQuery) {
+                // Если введён текст — ищем по нему
+                await runSearch([{ query: manualQuery, category: category || 'all' }]);
+            } else {
+                // Без текста — автоматический поиск по всем трём категориям
+                await runSearch(AUTO_QUERIES);
             }
         });
 
