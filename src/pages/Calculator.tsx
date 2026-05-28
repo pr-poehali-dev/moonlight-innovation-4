@@ -450,6 +450,7 @@ export default function Calculator() {
         onClose={() => setAdminOpen(false)}
         settings={settings}
         onSave={handleSaveAdmin}
+        userLoggedIn={!!currentUser}
       />
 
       <CalculatorAuthModal

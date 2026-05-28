@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AdminSettings,
   Material,
@@ -16,6 +16,7 @@ interface CalculatorAdminModalProps {
   onClose: () => void;
   settings: AdminSettings;
   onSave: (s: AdminSettings) => void;
+  userLoggedIn?: boolean;
 }
 
 export default function CalculatorAdminModal({
@@ -23,6 +24,7 @@ export default function CalculatorAdminModal({
   onClose,
   settings,
   onSave,
+  userLoggedIn = false,
 }: CalculatorAdminModalProps) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [login, setLogin] = useState("");
@@ -32,7 +34,13 @@ export default function CalculatorAdminModal({
   const [edit, setEdit] = useState<AdminSettings>(settings);
   const [subtypeWtIdx, setSubtypeWtIdx] = useState(0);
 
+  useEffect(() => {
+    if (open) setEdit(settings);
+  }, [open]);
+
   if (!open) return null;
+
+  const isAuthorized = userLoggedIn || loggedIn;
 
   function setEditMat(idx: number, field: keyof Material, val: string | number) {
     setEdit((prev) => {
@@ -91,7 +99,7 @@ export default function CalculatorAdminModal({
           <button onClick={onClose} className="text-2xl leading-none text-gray-400 hover:text-gray-700">×</button>
         </div>
 
-        {!loggedIn ? (
+        {!isAuthorized ? (
           <div className="space-y-3">
             <Field label="Логин">
               <CalcInput type="text" value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Логин" />
@@ -386,7 +394,7 @@ export default function CalculatorAdminModal({
                 onClick={() => { setLoggedIn(false); onClose(); }}
                 className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition"
               >
-                Выйти
+                Закрыть
               </button>
             </div>
           </div>
