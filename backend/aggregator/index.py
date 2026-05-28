@@ -31,9 +31,9 @@ DEFAULT_HTML = """<!DOCTYPE html>
         .btn:hover { background: var(--primary-dark); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .table-wrapper { background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); overflow: auto; flex: 1; max-height: calc(100vh - 240px); }
-        table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        th { background: #fafafa; padding: 0.5rem 0.4rem; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.2px; white-space: nowrap; position: sticky; top: 0; z-index: 8; }
-        td { padding: 0.4rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 0.75rem; vertical-align: middle; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th { background: #fafafa; padding: 0.5rem 0.4rem; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: sticky; top: 0; z-index: 8; }
+        td { padding: 0.4rem 0.4rem; border-bottom: 1px solid var(--border); font-size: 0.75rem; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         tr { cursor: pointer; transition: background 0.15s; }
         tr:hover td { background: #fff7e6; }
         tr.favorite-row td { background: #fffbe6; }
@@ -102,9 +102,18 @@ DEFAULT_HTML = """<!DOCTYPE html>
             <table id="ordersTable">
                 <thead>
                     <tr>
-                        <th style="width:30px;">№</th>
-                        <th style="width:70px;">Тип</th>
-                        <th style="width:100px;">Источник</th><th>Заказ</th><th>Заказчик</th><th>Обработка</th><th>Материал</th><th>Регион</th><th>Цена</th><th>Статус</th><th>Комм.</th><th>Оплата</th><th>Конт.</th><th>Дедлайн</th><th>Опубл.</th><th>Действ.</th>
+                        <th style="width:28px;">№</th>
+                        <th style="width:60px;">Тип</th>
+                        <th style="width:90px;">Источник</th>
+                        <th style="width:28%;">Заказ</th>
+                        <th style="width:15%;">Заказчик</th>
+                        <th style="width:10%;">Регион</th>
+                        <th style="width:80px;">Цена</th>
+                        <th style="width:110px;">Статус</th>
+                        <th style="width:60px;">Комм.</th>
+                        <th style="width:70px;">Дедлайн</th>
+                        <th style="width:70px;">Опубл.</th>
+                        <th style="width:70px;">Действ.</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -302,17 +311,13 @@ DEFAULT_HTML = """<!DOCTYPE html>
                     row.innerHTML =
                         '<td>' + globalIndex + '</td>' +
                         '<td><span class="source-badge">' + getPlatformTypeLabel(order.platform_type) + '</span></td>' +
-                        '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(order.source) + '">' + formatSource(order.source) + '</td>' +
-                        '<td>' + escapeHtml(order.title) + '</td>' +
-                        '<td>' + escapeHtml(order.customer_name) + '</td>' +
-                        '<td>' + escapeHtml(order.processing_types) + '</td>' +
-                        '<td>' + escapeHtml(order.materials) + '</td>' +
-                        '<td>' + escapeHtml(order.region) + '</td>' +
+                        '<td title="' + escapeHtml(order.source) + '">' + formatSource(order.source) + '</td>' +
+                        '<td title="' + escapeHtml(order.title) + '">' + escapeHtml(order.title) + '</td>' +
+                        '<td title="' + escapeHtml(order.customer_name) + '">' + escapeHtml(order.customer_name) + '</td>' +
+                        '<td title="' + escapeHtml(order.region) + '">' + escapeHtml(order.region) + '</td>' +
                         '<td>' + formatPrice(order) + '</td>' +
-                        '<td><span class="status-badge ' + statusClass + '">' + order.user_status + '</span><select onchange="updateOrderStatus(' + order.id + ', this.value)" style="margin-left:4px;">' + userStatuses.map(st => '<option ' + (order.user_status===st?'selected':'') + '>' + st + '</option>').join('') + '</select></td>' +
-                        '<td class="comment-indicator" title="' + escapeHtml(order.comments || '') + '">' + (order.comments ? order.comments.substring(0,30)+'…' : '—') + '</td>' +
-                        '<td>' + escapeHtml(order.payment_terms || '—') + '</td>' +
-                        '<td>' + (order.contact_info && order.contact_info !== 'Контакты скрыты' && order.contact_info !== 'Контакты открыты' ? '📞 Есть' : '—') + '</td>' +
+                        '<td><select onchange="updateOrderStatus(' + order.id + ', this.value)" style="width:100%;font-size:0.7rem;">' + userStatuses.map(st => '<option ' + (order.user_status===st?'selected':'') + '>' + st + '</option>').join('') + '</select></td>' +
+                        '<td title="' + escapeHtml(order.comments || '') + '">' + (order.comments ? order.comments.substring(0,20)+'…' : '—') + '</td>' +
                         '<td>' + formatDate(order.deadline) + '</td>' +
                         '<td>' + formatDate(order.published_at) + '</td>' +
                         '<td><div class="action-buttons"><button class="action-btn ' + (order.favorite ? 'fav-active' : '') + '" onclick="event.stopPropagation(); toggleFavorite(' + order.id + ')" title="Избранное">⭐</button><button class="action-btn" onclick="event.stopPropagation(); toggleArchive(' + order.id + ')" title="В архив">📁</button><button class="action-btn" onclick="event.stopPropagation(); deleteOrder(' + order.id + ')" title="Удалить">🗑️</button></div></td>';
