@@ -142,31 +142,34 @@ DEFAULT_HTML = """<!DOCTYPE html>
         const userStatuses = ['Новый', 'В работе', 'Письмо отправлено', 'Информационное письмо отправлено', 'КП отправлено', 'Переговоры', 'Заказ получен', 'Отказ', 'Закрыт'];
         const PAGE_SIZE = 30;
 
+        const STORAGE_KEY = 'metal_orders_data_v15';
+
         function loadOrders() {
-            const saved = localStorage.getItem('metal_orders_data_v14');
+            // Очищаем старые версии кэша
+            ['metal_orders_data_v14', 'metal_orders_data_v13'].forEach(k => localStorage.removeItem(k));
+
+            const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    if (parsed.length < initialOrders.length) {
-                        const merged = initialOrders.map(order => {
-                            const existing = parsed.find(o => o.id === order.id);
-                            if (existing) {
-                                return { ...order, user_status: existing.user_status, comments: existing.comments, favorite: existing.favorite, archived: existing.archived, contact_info: existing.contact_info };
-                            } else {
-                                return { ...order, user_status: 'Новый', comments: '', favorite: false, archived: false };
-                            }
-                        });
-                        saveOrders(merged);
-                        return merged;
-                    }
-                    return parsed;
+                    // Сохраняем пользовательские данные (статус, комментарии), обновляем поля
+                    const merged = initialOrders.map(order => {
+                        const existing = parsed.find(o => o.id === order.id);
+                        if (existing) {
+                            return { ...order, user_status: existing.user_status, comments: existing.comments, favorite: existing.favorite, archived: existing.archived, contact_info: existing.contact_info };
+                        }
+                        return { ...order, user_status: 'Новый', comments: '', favorite: false, archived: false };
+                    });
+                    // Добавляем найденные через поиск (id >= 1000) — они не в initialOrders
+                    const searchOrders = parsed.filter(o => o.id >= 1000);
+                    return [...searchOrders, ...merged];
                 } catch (e) {}
             }
             const initial = initialOrders.map(order => ({ ...order, user_status: 'Новый', comments: '', favorite: false, archived: false }));
             saveOrders(initial);
             return initial;
         }
-        function saveOrders(data) { localStorage.setItem('metal_orders_data_v14', JSON.stringify(data || ordersData)); }
+        function saveOrders(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data || ordersData)); }
         let ordersData = loadOrders();
 
         const defaultCompanyInfo = {
@@ -175,11 +178,11 @@ DEFAULT_HTML = """<!DOCTYPE html>
             specialization: 'Токарная, фрезерная, лазерная резка, сварка'
         };
         function loadCompanyInfo() {
-            const saved = localStorage.getItem('metal_company_info_v14');
+            const saved = localStorage.getItem('metal_company_info_v15') || localStorage.getItem('metal_company_info_v14');
             if (saved) try { return JSON.parse(saved); } catch (e) {}
             return { ...defaultCompanyInfo };
         }
-        function saveCompanyInfo(info) { localStorage.setItem('metal_company_info_v14', JSON.stringify(info)); }
+        function saveCompanyInfo(info) { localStorage.setItem('metal_company_info_v15', JSON.stringify(info)); }
         let companyInfo = loadCompanyInfo();
 
         function getUniqueValues(key, split = false) {
