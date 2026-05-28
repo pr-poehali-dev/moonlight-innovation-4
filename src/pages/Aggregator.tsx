@@ -11,7 +11,6 @@ export default function Aggregator() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [html, setHtml] = useState<string | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -25,9 +24,6 @@ export default function Aggregator() {
       });
       const authData = await authRes.json();
       if (authData.ok) {
-        const htmlRes = await fetch(AUTH_URL);
-        const htmlData = await htmlRes.json();
-        setHtml(htmlData.html || null);
         setLoggedIn(true);
       } else {
         setLoginError("Неверный логин или пароль");
@@ -128,23 +124,12 @@ export default function Aggregator() {
       </nav>
 
       <div className="flex-1">
-        {html ? (
-          <iframe
-            srcDoc={html}
-            className="w-full border-0 bg-white"
-            style={{ height: "calc(100vh - 65px)" }}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-            title="Агрегатор заказов"
-          />
-        ) : (
-          <div className="flex items-center justify-center py-24">
-            <div className="text-center">
-              <p className="mb-4 text-4xl">📄</p>
-              <p className="text-sm text-gray-500">Файл агрегатора ещё не загружен</p>
-              <p className="mt-1 text-xs text-gray-400">Загрузите HTML-файл в административной панели</p>
-            </div>
-          </div>
-        )}
+        <iframe
+          src={`${AUTH_URL}?mode=page`}
+          className="w-full border-0 bg-white"
+          style={{ height: "calc(100vh - 65px)" }}
+          title="Агрегатор заказов"
+        />
       </div>
     </div>
   );

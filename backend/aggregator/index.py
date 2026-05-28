@@ -521,21 +521,29 @@ def handler(event: dict, context) -> dict:
     method = event.get("httpMethod", "GET")
 
     if method == "GET":
+        qs = event.get("queryStringParameters") or {}
+        mode = qs.get("mode", "json")
         try:
             s3 = get_s3()
             obj = s3.get_object(Bucket=BUCKET, Key=S3_KEY)
             html = obj["Body"].read().decode("utf-8")
-            return {
-                "statusCode": 200,
-                "headers": {**cors, "Content-Type": "application/json"},
-                "body": json.dumps({"html": html}),
-            }
         except Exception:
+            html = DEFAULT_HTML
+
+        if mode == "page":
             return {
                 "statusCode": 200,
-                "headers": {**cors, "Content-Type": "application/json"},
-                "body": json.dumps({"html": DEFAULT_HTML}),
+                "headers": {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Access-Control-Allow-Origin": "*",
+                },
+                "body": html,
             }
+        return {
+            "statusCode": 200,
+            "headers": {**cors, "Content-Type": "application/json"},
+            "body": json.dumps({"html": html}),
+        }
 
     if method == "POST":
         body = json.loads(event.get("body") or "{}")
