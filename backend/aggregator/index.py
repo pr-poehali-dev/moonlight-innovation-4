@@ -437,6 +437,50 @@ DEFAULT_HTML = """<!DOCTYPE html>
         });
         document.getElementById('companySettingsBtn').addEventListener('click', openCompanySettings);
 
+        // ===== РЕАЛЬНЫЙ ПОИСК ПО ПЛОЩАДКАМ =====
+        const SEARCH_API = 'https://functions.poehali.dev/63646839-5642-4afa-827b-d771c8294f21';
+
+        document.getElementById('searchNewBtn').addEventListener('click', async () => {
+            const query = document.getElementById('searchInput').value.trim();
+            const category = document.getElementById('categoryFilter').value;
+            if (!query) { alert('Введите текст для поиска'); return; }
+
+            const btn = document.getElementById('searchNewBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Ищу...';
+
+            try {
+                const res = await fetch(SEARCH_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, category: category || 'all' }),
+                });
+                const data = await res.json();
+                if (data.error) { alert('Ошибка: ' + data.error); return; }
+
+                const newOrders = data.results || [];
+                if (newOrders.length === 0) { alert('По запросу «' + query + '» ничего не найдено на площадках.'); return; }
+
+                // Добавляем только новые (которых ещё нет по url)
+                const existingUrls = new Set(ordersData.map(o => o.url));
+                const added = newOrders.filter(o => o.url && !existingUrls.has(o.url));
+
+                if (added.length === 0) { alert('Новых заказов не найдено — все уже есть в таблице.'); return; }
+
+                ordersData = [...added, ...ordersData];
+                saveOrders();
+                refreshSelects();
+                currentPage = 1;
+                renderTable();
+                alert('✅ Найдено и добавлено ' + added.length + ' новых заказов с площадок!');
+            } catch (e) {
+                alert('Ошибка соединения с сервером поиска.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Поиск';
+            }
+        });
+
         document.getElementById('modalClose').addEventListener('click', closeModal);
         document.getElementById('modalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
         document.getElementById('emailModalClose').addEventListener('click', () => document.getElementById('emailModalOverlay').classList.remove('active'));

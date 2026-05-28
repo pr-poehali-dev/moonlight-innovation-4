@@ -1,12 +1,13 @@
 """
-ИИ-агент поиска заказов на металлообработку, тендеров, горнодобывающего оборудования
-и строительных подрядов на торговых площадках, досках объявлений и в соцсетях.
+Поиск заказов через открытые API без ключей:
+- zakupki.gov.ru (официальный API госзакупок)
+- metallportal.com (RSS)
+- metalloobrabotchiki.ru (RSS)
 """
 import json
-import os
 import http.client
 import urllib.parse
-
+import xml.etree.ElementTree as ET
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -14,109 +15,119 @@ CORS = {
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
-CATEGORIES = {
-    "turning": "токарные фрезерные работы металлообработка",
-    "tenders": "тендер госзакупки закупка металлообработка",
-    "mining": "горнодобывающее оборудование запчасти ремонт",
-    "construction": "строительный подряд субподряд монтаж",
-}
 
-SOURCES = [
-    "avito.ru", "youla.ru", "zakupki.gov.ru", "tiu.ru",
-    "pulscen.ru", "all.biz", "b2b-center.ru", "fabrikant.ru",
-    "rusmet.ru", "metalplace.ru", "vk.com", "ok.ru",
-]
-
-
-def serper_search(query: str, num: int = 10) -> list:
-    api_key = os.environ.get("SERPER_API_KEY", "")
-    if not api_key:
-        return []
-
-    payload = json.dumps({"q": query, "gl": "ru", "hl": "ru", "num": num})
-    headers = {
-        "X-API-KEY": api_key,
-        "Content-Type": "application/json",
-    }
-
-    conn = http.client.HTTPSConnection("google.serper.dev")
-    conn.request("POST", "/search", payload, headers)
-    res = conn.getresponse()
-    data = json.loads(res.read().decode("utf-8"))
-    conn.close()
-
+def search_zakupki(query: str, limit: int = 20) -> list:
     results = []
-    for item in data.get("organic", []):
-        results.append({
-            "title": item.get("title", ""),
-            "link": item.get("link", ""),
-            "snippet": item.get("snippet", ""),
-            "source": item.get("displayLink", ""),
+    try:
+        params = urllib.parse.urlencode({
+            "searchString": query,
+            "morphology": "on",
+            "pageNumber": "1",
+            "pageSize": str(limit),
+            "fz44": "on",
+            "fz223": "on",
+            "sortDirection": "false",
+            "sortBy": "PUBLISH_DATE",
         })
+        conn = http.client.HTTPSConnection("zakupki.gov.ru", timeout=15)
+        conn.request(
+            "GET",
+            f"/epz/order/extendedsearch/results.json?{params}",
+            headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+        )
+        res = conn.getresponse()
+        raw = res.read().decode("utf-8", errors="replace")
+        conn.close()
+        data = json.loads(raw)
+        for item in data.get("data", {}).get("list", [])[:limit]:
+            price = item.get("maxPrice")
+            results.append({
+                "id": 0,
+                "external_id": item.get("purchaseNumber", "—"),
+                "source": "zakupki.gov.ru",
+                "title": (item.get("purchaseObjectInfo") or item.get("lotDescription") or "Закупка")[:120],
+                "description": (item.get("lotDescription") or "")[:300],
+                "customer_name": item.get("organizationName", "—"),
+                "processing_types": "Тендер / Госзакупка",
+                "materials": "—",
+                "region": item.get("regionName", "—"),
+                "price_from": None,
+                "price_to": float(price) if price else None,
+                "currency": "RUB",
+                "deadline": (item.get("applicsAcceptanceDateTo") or "")[:10] or None,
+                "published_at": (item.get("publishDate") or "")[:10] or None,
+                "status": "active",
+                "contact_info": item.get("contactInfo") or "Контакты через zakupki.gov.ru",
+                "payment_terms": "по договору",
+                "category": "СМР (строительно-монтажные работы)" if any(w in query.lower() for w in ["смр", "строит", "монтаж"]) else "Металлообработка",
+                "platform_type": "tender",
+                "url": f"https://zakupki.gov.ru/epz/order/notice/ea44/view/common-info.html?regNumber={item.get('purchaseNumber', '')}",
+                "user_status": "Новый",
+                "comments": "",
+                "favorite": False,
+                "archived": False,
+            })
+    except Exception:
+        pass
     return results
 
 
-def openai_analyze(query: str, raw_results: list) -> list:
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key or not raw_results:
-        return raw_results
+def search_rss(host: str, path: str, source: str, category: str, platform_type: str, limit: int = 15) -> list:
+    results = []
+    try:
+        conn = http.client.HTTPSConnection(host, timeout=10)
+        conn.request("GET", path, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/rss+xml,text/xml"})
+        res = conn.getresponse()
+        raw = res.read().decode("utf-8", errors="replace")
+        conn.close()
 
-    results_text = "\n\n".join([
-        f"[{i+1}] {r['title']}\nСайт: {r['source']}\nСсылка: {r['link']}\nОписание: {r['snippet']}"
-        for i, r in enumerate(raw_results)
-    ])
+        root = ET.fromstring(raw)
+        channel = root.find("channel")
+        if channel is None:
+            return results
 
-    prompt = f"""Ты — ассистент для поиска заказов на металлообработку, тендеров, поставок горнодобывающего оборудования и строительных подрядов.
+        for item in channel.findall("item")[:limit]:
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            desc = (item.findtext("description") or "").strip()
+            pub = (item.findtext("pubDate") or "")[:10]
 
-Запрос пользователя: "{query}"
+            if not title:
+                continue
 
-Найденные результаты из интернета:
-{results_text}
-
-Отфильтруй и отранжируй результаты — оставь только те, которые реально относятся к заказам, тендерам, объявлениям о работах или поставках. Убери новости, статьи, рекламу сервисов.
-
-Верни JSON-массив объектов (максимум 12), каждый объект:
-{{
-  "title": "название объявления/тендера",
-  "link": "ссылка",
-  "source": "название сайта",
-  "snippet": "краткое описание (1-2 предложения)",
-  "category": "одно из: токарные работы | тендер | оборудование | подряд | другое",
-  "relevance": "высокая | средняя | низкая"
-}}
-
-Верни ТОЛЬКО JSON-массив, без пояснений."""
-
-    payload = json.dumps({
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
-    })
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    conn = http.client.HTTPSConnection("api.openai.com")
-    conn.request("POST", "/v1/chat/completions", payload, headers)
-    res = conn.getresponse()
-    data = json.loads(res.read().decode("utf-8"))
-    conn.close()
-
-    content = data["choices"][0]["message"]["content"]
-    parsed = json.loads(content)
-
-    if isinstance(parsed, list):
-        return parsed
-    for v in parsed.values():
-        if isinstance(v, list):
-            return v
-    return raw_results
+            results.append({
+                "id": 0,
+                "external_id": link.split("/")[-1] or "—",
+                "source": source,
+                "title": title[:120],
+                "description": desc[:300],
+                "customer_name": "Заказчик",
+                "processing_types": "Металлообработка",
+                "materials": "Сталь",
+                "region": "Россия",
+                "price_from": None,
+                "price_to": None,
+                "currency": "RUB",
+                "deadline": None,
+                "published_at": pub or None,
+                "status": "active",
+                "contact_info": "Контакты на сайте",
+                "payment_terms": "договорная",
+                "category": category,
+                "platform_type": platform_type,
+                "url": link,
+                "user_status": "Новый",
+                "comments": "",
+                "favorite": False,
+                "archived": False,
+            })
+    except Exception:
+        pass
+    return results
 
 
 def handler(event: dict, context) -> dict:
+    """Поиск заказов через открытые API площадок без API-ключей."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
@@ -125,35 +136,32 @@ def handler(event: dict, context) -> dict:
     category = body.get("category", "all")
 
     if not query:
-        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Введите поисковый запрос"})}
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Введите запрос"})}
 
-    # Формируем поисковые запросы
-    base = query
-    if category != "all" and category in CATEGORIES:
-        base = f"{query} {CATEGORIES[category]}"
-
-    # Ищем по нескольким запросам для охвата разных площадок
-    queries = [
-        f"{base} заказ объявление",
-        f"{base} тендер закупка site:zakupki.gov.ru OR site:b2b-center.ru OR site:fabrikant.ru",
-        f"{base} avito OR юла OR tiu OR pulscen",
-    ]
-
+    encoded = urllib.parse.quote(query)
     all_results = []
-    seen_links = set()
 
-    for q in queries:
-        items = serper_search(q, num=8)
-        for item in items:
-            if item["link"] not in seen_links:
-                seen_links.add(item["link"])
-                all_results.append(item)
+    # RSS metallportal.com
+    all_results += search_rss(
+        "metallportal.com", f"/zakazi/rss/?search={encoded}",
+        "metallportal.com", "Металлообработка", "tender"
+    )
 
-    # ИИ фильтрует и ранжирует
-    final = openai_analyze(query, all_results)
+    # RSS metalloobrabotchiki.ru
+    all_results += search_rss(
+        "metalloobrabotchiki.ru", f"/orders/rss/?q={encoded}",
+        "metalloobrabotchiki.ru", "Металлообработка", "service"
+    )
+
+    # Госзакупки
+    all_results += search_zakupki(query)
+
+    # Нумерация с учётом существующих
+    for i, r in enumerate(all_results):
+        r["id"] = 1000 + i + 1
 
     return {
         "statusCode": 200,
         "headers": {**CORS, "Content-Type": "application/json"},
-        "body": json.dumps({"results": final, "total": len(final), "query": query}, ensure_ascii=False),
+        "body": json.dumps({"results": all_results, "total": len(all_results), "query": query}, ensure_ascii=False),
     }
