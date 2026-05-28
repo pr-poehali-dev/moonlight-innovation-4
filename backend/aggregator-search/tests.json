@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "Поиск токарных работ",
+      "method": "POST",
+      "path": "/",
+      "body": {"query": "токарные работы Екатеринбург", "category": "turning"},
+      "expectedStatus": 200,
+      "expectedBody": {"results": []},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "OPTIONS CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial",
+      "expectedBody": {}
+    }
+  ]
+}
