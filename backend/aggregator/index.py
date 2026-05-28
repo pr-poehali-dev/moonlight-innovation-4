@@ -523,22 +523,26 @@ def handler(event: dict, context) -> dict:
     if method == "GET":
         qs = event.get("queryStringParameters") or {}
         mode = qs.get("mode", "json")
+
+        if mode == "page":
+            # Всегда отдаём актуальный HTML с кодом поиска
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache",
+                },
+                "body": DEFAULT_HTML,
+            }
+
+        # JSON-режим — для совместимости
         try:
             s3 = get_s3()
             obj = s3.get_object(Bucket=BUCKET, Key=S3_KEY)
             html = obj["Body"].read().decode("utf-8")
         except Exception:
             html = DEFAULT_HTML
-
-        if mode == "page":
-            return {
-                "statusCode": 200,
-                "headers": {
-                    "Content-Type": "text/html; charset=utf-8",
-                    "Access-Control-Allow-Origin": "*",
-                },
-                "body": html,
-            }
         return {
             "statusCode": 200,
             "headers": {**cors, "Content-Type": "application/json"},
