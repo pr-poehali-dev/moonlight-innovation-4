@@ -105,8 +105,8 @@ DEFAULT_HTML = """<!DOCTYPE html>
                 <thead>
                     <tr>
                         <th style="width:30px;">№</th>
-                        <th>Тип</th>
-                        <th>Источник</th><th>Заказ</th><th>Заказчик</th><th>Обработка</th><th>Материал</th><th>Регион</th><th>Цена</th><th>Статус</th><th>Комм.</th><th>Оплата</th><th>Конт.</th><th>Дедлайн</th><th>Опубл.</th><th>Действ.</th>
+                        <th style="width:70px;">Тип</th>
+                        <th style="width:100px;">Источник</th><th>Заказ</th><th>Заказчик</th><th>Обработка</th><th>Материал</th><th>Регион</th><th>Цена</th><th>Статус</th><th>Комм.</th><th>Оплата</th><th>Конт.</th><th>Дедлайн</th><th>Опубл.</th><th>Действ.</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -277,6 +277,7 @@ DEFAULT_HTML = """<!DOCTYPE html>
         function getStatusClass(status) { const map = { 'Новый':'status-new', 'В работе':'status-work', 'Письмо отправлено':'status-letter-sent', 'Информационное письмо отправлено':'status-info-letter-sent', 'КП отправлено':'status-kp-sent', 'Переговоры':'status-negotiations', 'Заказ получен':'status-order-received', 'Отказ':'status-rejected', 'Закрыт':'status-closed' }; return map[status] || ''; }
         function escapeHtml(text) { const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}; return String(text).replace(/[&<>"']/g, m => map[m]); }
         function getPlatformTypeLabel(type) { const map = { 'tender': '🏛️ Тендер', 'social': '💬 Соцсеть', 'service': '🔧 Сервис' }; return map[type] || type; }
+        function formatSource(src) { try { return new URL(src.startsWith('http') ? src : 'https://' + src).hostname.replace('www.', ''); } catch(e) { return src; } }
 
         function renderTable() {
             const filtered = filterOrders();
@@ -303,7 +304,7 @@ DEFAULT_HTML = """<!DOCTYPE html>
                     row.innerHTML =
                         '<td>' + globalIndex + '</td>' +
                         '<td><span class="source-badge">' + getPlatformTypeLabel(order.platform_type) + '</span></td>' +
-                        '<td>' + order.source + '</td>' +
+                        '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(order.source) + '">' + formatSource(order.source) + '</td>' +
                         '<td>' + escapeHtml(order.title) + '</td>' +
                         '<td>' + escapeHtml(order.customer_name) + '</td>' +
                         '<td>' + escapeHtml(order.processing_types) + '</td>' +
