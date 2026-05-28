@@ -21,13 +21,32 @@ CORS = {
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept": "application/rss+xml,text/xml,*/*"}
 
+import re
+
+def extract_tender_number(url, title="", desc=""):
+    """Извлекает номер тендера из URL, заголовка или описания."""
+    # Сначала ищем явные паттерны номеров тендеров
+    for text in [desc, title, url]:
+        # №12345678 или #12345678
+        m = re.search(r'[№#]\s*(\d{5,})', text)
+        if m:
+            return "№" + m.group(1)
+    # Длинные числовые ID в URL (от 7 цифр — номера закупок)
+    m = re.search(r'\b(\d{7,})\b', url)
+    if m:
+        return m.group(1)
+    # Fallback — последний сегмент пути без расширения
+    slug = url.rstrip("/").split("/")[-1]
+    slug = re.sub(r'\.[a-z]{2,4}$', '', slug)
+    return slug or "—"
+
 
 def make_order(source, title, url, desc="", customer="Заказчик", region="Россия",
                price_to=None, deadline=None, published=None,
                proc_type="Металлообработка", category="Металлообработка", platform="tender"):
     return {
         "id": 0,
-        "external_id": url.split("/")[-1] or source,
+        "external_id": extract_tender_number(url, title, desc),
         "source": source,
         "title": title[:120],
         "description": desc[:300],
