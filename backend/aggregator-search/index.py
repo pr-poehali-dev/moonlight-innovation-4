@@ -1,20 +1,13 @@
 """
-Поиск заказов через открытые источники без API-ключей:
+Поиск заказов через открытые источники + Serper/OpenAI если ключи добавлены:
 - zakupki.gov.ru (госзакупки 44-ФЗ + 223-ФЗ)
-- metallportal.com (RSS)
-- metalloobrabotchiki.ru (RSS)
-- tenders.ru (RSS тендеры)
-- tender.pro (открытый поиск)
-- fabrikant.ru (RSS)
-- b2b-center.ru (RSS)
-- roseltorg.ru (RSS)
-- bicotender.ru (RSS)
-- zakupki.kontur.ru (RSS)
-- rusmet.ru (RSS металл)
-- pulscen.ru (RSS)
-- tiu.ru (RSS)
+- metallportal.com, metalloobrabotchiki.ru, rusmet.ru (RSS металл)
+- fabrikant.ru, b2b-center.ru, roseltorg.ru, bicotender.ru, tenders.ru (RSS тендеры)
+- tiu.ru, pulscen.ru, all.biz, torgiplaza.ru (доски объявлений)
+- Serper.dev Google Search + OpenAI фильтрация (если ключи в секретах)
 """
 import json
+import os
 import http.client
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -264,6 +257,105 @@ def src_torgiplaza(query):
     return rss_to_orders(items, "torgiplaza.ru", "Металлообработка", "tender")
 
 
+# ─── Serper.dev + OpenAI ──────────────────────────────────────────────────────
+
+def src_serper(query: str) -> list:
+    """Поиск через Google (Serper.dev) — работает если SERPER_API_KEY задан."""
+    api_key = os.environ.get("SERPER_API_KEY", "")
+    if not api_key:
+        return []
+
+    results = []
+    # Несколько целевых запросов для охвата разных площадок
+    queries = [
+        f"{query} заказ тендер металлообработка",
+        f"{query} закупка site:fabrikant.ru OR site:b2b-center.ru OR site:zakupki.gov.ru",
+        f"{query} объявление avito OR tiu.ru OR pulscen.ru",
+    ]
+    seen = set()
+    for q in queries:
+        try:
+            payload = json.dumps({"q": q, "gl": "ru", "hl": "ru", "num": 10})
+            conn = http.client.HTTPSConnection("google.serper.dev", timeout=10)
+            conn.request("POST", "/search", payload, {"X-API-KEY": api_key, "Content-Type": "application/json"})
+            res = conn.getresponse()
+            data = json.loads(res.read().decode("utf-8", errors="replace"))
+            conn.close()
+            for item in data.get("organic", []):
+                link = item.get("link", "")
+                if not link or link in seen:
+                    continue
+                seen.add(link)
+                source = item.get("displayLink", link)
+                results.append(make_order(
+                    source,
+                    item.get("title", "")[:120],
+                    link,
+                    item.get("snippet", "")[:300],
+                    proc_type="Металлообработка / Тендер",
+                    category="Металлообработка",
+                    platform="service",
+                ))
+        except Exception:
+            pass
+    return results
+
+
+def openai_filter(query: str, results: list) -> list:
+    """Фильтрует и ранжирует результаты через OpenAI — если OPENAI_API_KEY задан."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key or not results:
+        return results
+
+    results_text = "\n\n".join([
+        f"[{i+1}] {r['title']}\nСайт: {r['source']}\nСсылка: {r['url']}\nОписание: {r['description']}"
+        for i, r in enumerate(results[:40])
+    ])
+
+    prompt = f"""Запрос пользователя: "{query}"
+
+Найденные результаты:
+{results_text}
+
+Оставь только те результаты, которые реально относятся к заказам, тендерам, объявлениям о работах или поставках по теме запроса. Убери новости, статьи, общие страницы сайтов.
+
+Верни JSON: {{"keep": [список номеров из [...] которые нужно оставить], "categories": {{"номер": "токарные работы|тендер|оборудование|подряд|другое"}}}}
+
+Только JSON, без пояснений."""
+
+    try:
+        payload = json.dumps({
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        })
+        conn = http.client.HTTPSConnection("api.openai.com", timeout=20)
+        conn.request("POST", "/v1/chat/completions", payload, {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        })
+        res = conn.getresponse()
+        data = json.loads(res.read().decode("utf-8", errors="replace"))
+        conn.close()
+        parsed = json.loads(data["choices"][0]["message"]["content"])
+        keep_nums = set(parsed.get("keep", []))
+        categories = parsed.get("categories", {})
+        filtered = []
+        for i, r in enumerate(results[:40]):
+            num = i + 1
+            if num in keep_nums:
+                cat = categories.get(str(num), "")
+                if cat:
+                    r["processing_types"] = cat
+                filtered.append(r)
+        # Добавляем оставшиеся (41+) без фильтрации
+        filtered += results[40:]
+        return filtered
+    except Exception:
+        return results
+
+
 # ─── Handler ──────────────────────────────────────────────────────────────────
 
 SOURCES = [
@@ -280,11 +372,12 @@ SOURCES = [
     src_zakupki_gov,
     src_all_biz,
     src_torgiplaza,
+    src_serper,  # включается автоматически при наличии SERPER_API_KEY
 ]
 
 
 def handler(event: dict, context) -> dict:
-    """Параллельный поиск заказов по 13 открытым источникам без API-ключей."""
+    """Параллельный поиск заказов по 14 источникам. При наличии ключей подключаются Serper + OpenAI."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
@@ -298,7 +391,7 @@ def handler(event: dict, context) -> dict:
     seen_urls = set()
 
     # Параллельный запрос ко всем источникам
-    with ThreadPoolExecutor(max_workers=13) as ex:
+    with ThreadPoolExecutor(max_workers=14) as ex:
         futures = {ex.submit(src, query): src.__name__ for src in SOURCES}
         for future in as_completed(futures):
             try:
@@ -311,12 +404,24 @@ def handler(event: dict, context) -> dict:
             except Exception:
                 pass
 
+    # ИИ-фильтрация через OpenAI (если ключ задан)
+    all_results = openai_filter(query, all_results)
+
     # Нумерация
     for i, r in enumerate(all_results):
         r["id"] = 1000 + i + 1
 
+    has_serper = bool(os.environ.get("SERPER_API_KEY"))
+    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
+
     return {
         "statusCode": 200,
         "headers": {**CORS, "Content-Type": "application/json"},
-        "body": json.dumps({"results": all_results, "total": len(all_results), "query": query}, ensure_ascii=False),
+        "body": json.dumps({
+            "results": all_results,
+            "total": len(all_results),
+            "query": query,
+            "sources_used": 13 + (1 if has_serper else 0),
+            "ai_filtered": has_openai,
+        }, ensure_ascii=False),
     }
