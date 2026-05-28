@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import Calculator from "./pages/Calculator";
 import CalcAdmin from "./pages/CalcAdmin";
+import Aggregator from "./pages/Aggregator";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/calculator" element={<Calculator />} />
           <Route path="/calc-admin" element={<CalcAdmin />} />
+          <Route path="/aggregator" element={<Aggregator />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

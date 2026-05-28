@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "GET - получить HTML (пустой)",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST login - неверный пароль",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "login", "login": "wrong@mail.ru", "password": "wrong"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": false},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST login - верный пароль",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "login", "login": "das-service@inbox.ru", "password": "autoremex2012"},
+      "expectedStatus": 200,
+      "expectedBody": {"ok": true},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

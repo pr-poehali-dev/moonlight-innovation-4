@@ -95,7 +95,13 @@ export default function Index() {
           ))}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:flex items-center gap-3">
+          <button
+            onClick={() => navigate("/aggregator")}
+            className="rounded-full border border-gray-300 bg-white/60 px-4 py-2 text-sm font-semibold text-gray-600 backdrop-blur-md transition hover:bg-white hover:text-gray-900"
+          >
+            Агрегатор
+          </button>
           <MagneticButton variant="primary" onClick={() => navigate("/calculator")} className="md:px-6 md:py-2.5 md:text-sm">
             Калькулятор
           </MagneticButton>
