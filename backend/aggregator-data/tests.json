@@ -1,0 +1,21 @@
+{
+  "tests": [
+    {
+      "name": "get_all orders",
+      "method": "POST",
+      "path": "/",
+      "body": {"action": "get_all"},
+      "expectedStatus": 200,
+      "expectedBody": {"orders": [], "total": 0},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "OPTIONS CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

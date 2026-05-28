@@ -142,35 +142,34 @@ DEFAULT_HTML = """<!DOCTYPE html>
         const userStatuses = ['Новый', 'В работе', 'Письмо отправлено', 'Информационное письмо отправлено', 'КП отправлено', 'Переговоры', 'Заказ получен', 'Отказ', 'Закрыт'];
         const PAGE_SIZE = 30;
 
-        const STORAGE_KEY = 'metal_orders_data_v15';
+        const DATA_API = 'https://functions.poehali.dev/015eea8b-60f6-4478-8f2d-c523f62f7380';
+        let ordersData = [];
+        let dataLoaded = false;
 
-        function loadOrders() {
-            // Очищаем старые версии кэша
-            ['metal_orders_data_v14', 'metal_orders_data_v13'].forEach(k => localStorage.removeItem(k));
-
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    // Сохраняем пользовательские данные (статус, комментарии), обновляем поля
-                    const merged = initialOrders.map(order => {
-                        const existing = parsed.find(o => o.id === order.id);
-                        if (existing) {
-                            return { ...order, user_status: existing.user_status, comments: existing.comments, favorite: existing.favorite, archived: existing.archived, contact_info: existing.contact_info };
-                        }
-                        return { ...order, user_status: 'Новый', comments: '', favorite: false, archived: false };
-                    });
-                    // Добавляем найденные через поиск (id >= 1000) — они не в initialOrders
-                    const searchOrders = parsed.filter(o => o.id >= 1000);
-                    return [...searchOrders, ...merged];
-                } catch (e) {}
-            }
-            const initial = initialOrders.map(order => ({ ...order, user_status: 'Новый', comments: '', favorite: false, archived: false }));
-            saveOrders(initial);
-            return initial;
+        async function apiCall(body) {
+            const res = await fetch(DATA_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            return res.json();
         }
-        function saveOrders(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data || ordersData)); }
-        let ordersData = loadOrders();
+
+        async function loadOrdersFromServer() {
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="12" style="text-align:center;padding:2rem;color:#aaa;">⏳ Загрузка данных...</td></tr>';
+            try {
+                const data = await apiCall({ action: 'get_all' });
+                ordersData = data.orders || [];
+                // Если БД пуста — загружаем стартовые заказы
+                if (ordersData.length === 0) {
+                    const starter = initialOrders.map(o => ({ ...o, user_status: 'Новый', comments: '', favorite: false, archived: false }));
+                    await apiCall({ action: 'upsert_many', orders: starter });
+                    const data2 = await apiCall({ action: 'get_all' });
+                    ordersData = data2.orders || [];
+                }
+            } catch(e) {
+                ordersData = initialOrders.map(o => ({ ...o, user_status: 'Новый', comments: '', favorite: false, archived: false }));
+            }
+            dataLoaded = true;
+            refreshSelects();
+            renderTable();
+        }
 
         const defaultCompanyInfo = {
             name: 'ООО "МеталлОбработкаПро"', contact: 'Иванов И.И.',
@@ -214,7 +213,6 @@ DEFAULT_HTML = """<!DOCTYPE html>
             sel.innerHTML = '<option value="">Все</option>';
             userStatuses.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; sel.appendChild(opt); });
         }
-        refreshSelects();
 
         let currentPage = 1;
         function goToPage(page) { currentPage = page; renderTable(); }
@@ -261,12 +259,24 @@ DEFAULT_HTML = """<!DOCTYPE html>
             });
         }
 
-        function updateOrderStatus(orderId, newStatus) { const order = ordersData.find(o => o.id === orderId); if (order) { order.user_status = newStatus; saveOrders(); renderTable(); } }
-        function updateOrderComments(orderId, newComments) { const order = ordersData.find(o => o.id === orderId); if (order) { order.comments = newComments; saveOrders(); renderTable(); } }
-        function updateOrderContactInfo(orderId, newContactInfo) { const order = ordersData.find(o => o.id === orderId); if (order) { order.contact_info = newContactInfo; saveOrders(); renderTable(); } }
-        function toggleFavorite(orderId) { const order = ordersData.find(o => o.id === orderId); if (order) { order.favorite = !order.favorite; saveOrders(); renderTable(); } }
-        function toggleArchive(orderId) { const order = ordersData.find(o => o.id === orderId); if (order) { order.archived = !order.archived; saveOrders(); renderTable(); } }
-        function deleteOrder(orderId) { if (!confirm('Удалить заказ навсегда?')) return; ordersData = ordersData.filter(o => o.id !== orderId); saveOrders(); renderTable(); }
+        async function updateOrderField(orderId, fields) {
+            const order = ordersData.find(o => o.id === orderId);
+            if (!order) return;
+            Object.assign(order, fields);
+            renderTable();
+            await apiCall({ action: 'update_order', id: orderId, ...fields });
+        }
+        function updateOrderStatus(orderId, newStatus) { updateOrderField(orderId, { user_status: newStatus }); }
+        function updateOrderComments(orderId, newComments) { updateOrderField(orderId, { comments: newComments }); }
+        function updateOrderContactInfo(orderId, newContactInfo) { updateOrderField(orderId, { contact_info: newContactInfo }); }
+        function toggleFavorite(orderId) { const o = ordersData.find(o => o.id === orderId); if (o) updateOrderField(orderId, { favorite: !o.favorite }); }
+        function toggleArchive(orderId) { const o = ordersData.find(o => o.id === orderId); if (o) updateOrderField(orderId, { archived: !o.archived }); }
+        async function deleteOrder(orderId) {
+            if (!confirm('Удалить заказ навсегда?')) return;
+            ordersData = ordersData.filter(o => o.id !== orderId);
+            renderTable();
+            await apiCall({ action: 'delete_order', id: orderId });
+        }
 
         function formatPrice(order) {
             if (order.price_from && order.price_to) return order.price_from.toLocaleString() + ' – ' + order.price_to.toLocaleString() + ' ₽';
@@ -357,7 +367,18 @@ DEFAULT_HTML = """<!DOCTYPE html>
             document.getElementById('modalOverlay').classList.add('active');
         }
 
-        function saveModalChanges(orderId) { updateOrderStatus(orderId, document.getElementById('modalStatusSelect').value); updateOrderComments(orderId, document.getElementById('modalCommentText').value); updateOrderContactInfo(orderId, document.getElementById('modalContactInfo').value); closeModal(); }
+        async function saveModalChanges(orderId) {
+            const newStatus = document.getElementById('modalStatusSelect').value;
+            const newComments = document.getElementById('modalCommentText').value;
+            const newContact = document.getElementById('modalContactInfo').value;
+            const order = ordersData.find(o => o.id === orderId);
+            if (order) {
+                Object.assign(order, { user_status: newStatus, comments: newComments, contact_info: newContact });
+                renderTable();
+                await apiCall({ action: 'update_order', id: orderId, user_status: newStatus, comments: newComments, contact_info: newContact });
+            }
+            closeModal();
+        }
         function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
 
         function openContactsModal(order) {
@@ -441,8 +462,8 @@ DEFAULT_HTML = """<!DOCTYPE html>
             btn.disabled = true;
             btn.textContent = '⏳ Ищу...';
 
-            let totalAdded = 0;
             const existingUrls = new Set(ordersData.map(o => o.url));
+            let allNew = [];
 
             for (let i = 0; i < queries.length; i++) {
                 const { query, category } = queries[i];
@@ -457,24 +478,28 @@ DEFAULT_HTML = """<!DOCTYPE html>
                     const newOrders = data.results || [];
                     const added = newOrders.filter(o => o.url && !existingUrls.has(o.url));
                     added.forEach(o => existingUrls.add(o.url));
-                    if (added.length > 0) {
-                        ordersData = [...added, ...ordersData];
-                        totalAdded += added.length;
-                    }
+                    allNew = allNew.concat(added);
                 } catch (e) { /* пропускаем ошибку одного запроса */ }
             }
 
-            saveOrders();
+            btn.textContent = '⏳ Сохраняю...';
+            if (allNew.length > 0) {
+                await apiCall({ action: 'upsert_many', orders: allNew });
+                // Перезагружаем с сервера
+                const fresh = await apiCall({ action: 'get_all' });
+                ordersData = fresh.orders || ordersData;
+            }
+
             refreshSelects();
             currentPage = 1;
             renderTable();
             btn.disabled = false;
             btn.textContent = '🔍 Поиск';
 
-            if (totalAdded > 0) {
-                alert('✅ Найдено и добавлено ' + totalAdded + ' новых тендеров и заявок!');
+            if (allNew.length > 0) {
+                alert('✅ Найдено и добавлено ' + allNew.length + ' новых тендеров и заявок!');
             } else {
-                alert('Новых заказов не найдено — все уже есть в таблице.');
+                alert('Новых заказов не найдено — все уже есть в базе.');
             }
         }
 
@@ -502,7 +527,8 @@ DEFAULT_HTML = """<!DOCTYPE html>
         document.getElementById('contactsModalClose').addEventListener('click', () => document.getElementById('contactsModalOverlay').classList.remove('active'));
         document.getElementById('contactsModalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('contactsModalOverlay')) document.getElementById('contactsModalOverlay').classList.remove('active'); });
 
-        renderTable();
+        // Загружаем данные с сервера при старте
+        loadOrdersFromServer();
     </script>
 </body>
 </html>"""
