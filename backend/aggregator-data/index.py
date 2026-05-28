@@ -164,6 +164,17 @@ def handler(event: dict, context) -> dict:
                 "body": json.dumps({"ok": True}),
             }
 
+        elif action == "clear_all":
+            cur.execute(f"DELETE FROM {T}")
+            cur.execute(f"ALTER SEQUENCE {SCHEMA}.aggregator_orders_id_seq RESTART WITH 1")
+            conn.commit()
+            conn.close()
+            return {
+                "statusCode": 200,
+                "headers": {**CORS, "Content-Type": "application/json"},
+                "body": json.dumps({"ok": True}),
+            }
+
         conn.close()
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Неизвестное действие"})}
 

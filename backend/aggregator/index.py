@@ -95,6 +95,7 @@ DEFAULT_HTML = """<!DOCTYPE html>
                 <div class="filter-group" style="max-width: 130px;"><label>Статус</label><select id="userStatusFilter"><option value="">Все</option></select></div>
                 <div class="filter-group" style="max-width: 120px;"><label>Режим</label><select id="viewModeFilter"><option value="all">Все</option><option value="favorites">Избранные</option><option value="archive">Архив</option></select></div>
                 <button class="btn" id="searchNewBtn" style="background:#1677ff;">🔍 Поиск</button>
+                <button class="btn" id="clearAllBtn" style="background:#cf1322;">🗑️ Сбросить все</button>
                 <button class="btn" id="companySettingsBtn" style="background:#722ed1;">⚙️ Компания</button>
             </div>
         </div>
@@ -443,6 +444,26 @@ DEFAULT_HTML = """<!DOCTYPE html>
         document.getElementById('userStatusFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
         document.getElementById('viewModeFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
         document.getElementById('companySettingsBtn').addEventListener('click', openCompanySettings);
+
+        document.getElementById('clearAllBtn').addEventListener('click', async () => {
+            if (!confirm('Удалить ВСЕ тендеры и заявки? Это действие нельзя отменить.')) return;
+            const btn = document.getElementById('clearAllBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Очищаю...';
+            try {
+                await apiCall({ action: 'clear_all' });
+                ordersData = [];
+                refreshSelects();
+                currentPage = 1;
+                renderTable();
+                alert('✅ Все данные удалены. Нажмите «🔍 Поиск» чтобы загрузить актуальные тендеры.');
+            } catch(e) {
+                alert('Ошибка при очистке. Попробуйте ещё раз.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🗑️ Сбросить все';
+            }
+        });
 
         // ===== РЕАЛЬНЫЙ ПОИСК ПО ПЛОЩАДКАМ =====
         const SEARCH_API = 'https://functions.poehali.dev/63646839-5642-4afa-827b-d771c8294f21';
