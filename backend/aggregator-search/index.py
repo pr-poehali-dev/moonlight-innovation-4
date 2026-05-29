@@ -22,57 +22,81 @@ HEADERS = {
     "Accept": "application/rss+xml,text/xml,*/*"
 }
 
-# Домены / паттерны, которые дают СПИСКИ тендеров, а не сам тендер
+# Домены, которые дают СПИСКИ / статьи / обучение — не сами тендеры
 BLACKLIST_DOMAINS = re.compile(
     r'(initpro\.ru|tenderbase\.ru|tenderguru\.ru|zakazrf\.ru|findtenders\.ru'
     r'|tenderplan\.ru|tendereasy\.ru|clearspending\.ru|e-disclosure\.ru'
-    r'|seldon\.ru|zakupki24\.ru)',
+    r'|seldon\.ru|zakupki24\.ru'
+    r'|profizakupok\.rts-tender\.ru)',  # учебный портал rts-tender
     re.IGNORECASE
 )
 
-# Паттерны URL каталогов / поиска / пагинации / страниц организаций
+# Паттерны URL каталогов / поиска / пагинации / статей / страниц организаций
 CATALOG_URL = re.compile(
-    r'(/search[/?]|/catalog|/category|/tags?[/?]|[?&]page=|/results[/?]'
+    r'(/search[/?]|/katalog|/catalog|/category|/tags?[/?]|[?&]page=|/results[/?]'
     r'|/extendedsearch|/list[/?]|/filter|/region-|/tendery|/zakupki-na'
     r'|/company/|/organization/|/supplier/|/customer/|/inn/'
-    r'|[?&]inn=|[?&]ogrn=|/tenders/search|/purchases/search)',
+    r'|[?&]inn=|[?&]ogrn=|/tenders/search|/purchases/search'
+    r'|/knowledge_db|/article/|/blog/|/news/|/press/|/about|/help'
+    r'|/_flysystem/|/webdav/|/mod/resource/)',  # файловые хранилища, CMS
     re.IGNORECASE
 )
 
-# zakupki.kontur.ru: конкретный тендер — /D{номер}, страница компании — /company/{ИНН}
-# Пропускаем только ссылки вида /D{буква}{цифры} или /{цифры} — конкретный лот
-KONTUR_TENDER = re.compile(r'zakupki\.kontur\.ru/[A-Z]\d{10,}', re.IGNORECASE)
+# Запрещённые расширения файлов — не страница тендера
+FILE_EXT = re.compile(r'\.(pdf|docx?|xlsx?|pptx?|zip|rar|7z|txt|csv)([?#]|$)', re.IGNORECASE)
 
-# ИНН — ровно 10 или 12 цифр без букв рядом (отличаем от реального ID тендера)
-INN_PATTERN = re.compile(r'(?<![A-Za-z/])(\d{10}|\d{12})(?![0-9])')
+# zakupki.kontur.ru: конкретный тендер — /D{номер} или /P{номер}
+KONTUR_TENDER = re.compile(r'zakupki\.kontur\.ru/[A-Z]\d{5,}', re.IGNORECASE)
 
-# Заголовки-мусор — это страницы организаций, а не конкретные тендеры
+# metallportal.com: конкретный заказ — /zakazi/{slug-с-цифрами}, остальное — каталог
+METALLPORTAL_TENDER = re.compile(r'metallportal\.com/zakazi/[a-z0-9].+-\d{6,}', re.IGNORECASE)
+
+# roseltorg.ru: конкретная процедура — /procedure/{ID} или /lot/{ID}
+ROSELTORG_TENDER = re.compile(r'roseltorg\.ru/(procedure|lot|trade)/\d{5,}', re.IGNORECASE)
+
+# ИНН — ровно 10 или 12 цифр в конце пути (страница организации по ИНН)
+INN_PATTERN = re.compile(r'(?<![A-Za-z0-9])(\d{10}|\d{12})(?![0-9])')
+
+# Заголовки-мусор — страницы организаций или каталогов
 JUNK_TITLES = re.compile(
     r'^(тендеры\s+и\s+закупки\s+|все\s+тендеры\s+|закупки\s+компании\s+'
-    r'|тендеры\s+компании\s+|поставщик\s+|закупки\s+по\s+инн)',
+    r'|тендеры\s+компании\s+|поставщик\s+|закупки\s+по\s+инн'
+    r'|список\s+заказов|каталог\s+|услуги\s+.+найдено\s+\d+'
+    r'|.+на\s+заказ\s+в\s+|.+найдено\s+\d+\s+компани)',
     re.IGNORECASE
 )
 
 
 def is_real_tender_url(url: str, title: str = "") -> bool:
-    """True только если URL ведёт на конкретный тендер, а не список/каталог."""
+    """True только если URL ведёт на страницу ОДНОГО конкретного тендера."""
     if not url or len(url) < 10:
         return False
-    # Заголовок — явный признак страницы-списка организации
+    # Явный файл — не тендер
+    if FILE_EXT.search(url):
+        return False
+    # Заголовок выдаёт страницу-список или каталог
     if title and JUNK_TITLES.search(title.strip()):
         return False
     # Чёрный список доменов
     if BLACKLIST_DOMAINS.search(url):
         return False
-    # Паттерны каталогов, поиска, страниц организаций
+    # Паттерны каталогов, статей, файловых хранилищ, страниц организаций
     if CATALOG_URL.search(url):
         return False
-    # zakupki.kontur.ru — только формат /D{номер}, остальное — страницы организаций
+    # Площадки с жёсткими правилами URL — проверяем паттерн конкретного тендера
     if 'zakupki.kontur.ru' in url:
         return bool(KONTUR_TENDER.search(url))
-    # URL содержит только ИНН (10/12 цифр) без реального ID тендера — это страница организации
-    path = url.split("?")[0]  # без query string
-    path_tail = path.rstrip("/").split("/")[-1]
+    if 'metallportal.com' in url:
+        # Принимаем только /zakazi/{slug} — конкретный заказ с цифровым суффиксом
+        return bool(METALLPORTAL_TENDER.search(url))
+    if 'roseltorg.ru' in url:
+        return bool(ROSELTORG_TENDER.search(url))
+    # Главная страница или корень домена — не тендер
+    path = url.split("?")[0].rstrip("/")
+    if path.count("/") < 3:  # https://domain.ru/path — слишком коротко
+        return False
+    # ИНН в конце пути — страница организации
+    path_tail = path.split("/")[-1]
     if INN_PATTERN.fullmatch(path_tail):
         return False
     return True
