@@ -6,7 +6,7 @@
       "path": "/",
       "body": {"query": "токарные работы"},
       "expectedStatus": 200,
-      "expectedBody": {"query": "токарные работы"},
+      "expectedBody": {"query": "токарные работы", "ai_powered": true},
       "bodyMatcher": "partial"
     },
     {
