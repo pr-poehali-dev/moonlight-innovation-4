@@ -16,55 +16,48 @@ CORS = {
 }
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
-HEADERS = {"User-Agent": UA, "Accept": "text/html,*/*", "Accept-Language": "ru-RU,ru;q=0.9"}
+HEADERS = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.9",
+    "Accept-Language": "ru-RU,ru;q=0.9",
+    "Accept-Encoding": "identity",
+    "Connection": "close",
+}
 
 SEARCH_TOPICS = [
     {
         "id": "mining",
         "label": "Горное оборудование",
-        "queries": [
-            "ремонт горного оборудования",
-            "поставка горного оборудования запчасти",
-            "горношахтное оборудование ремонт",
-        ],
+        "queries": ["горное оборудование ремонт", "горношахтное оборудование поставка"],
         "category": "Горное оборудование",
     },
     {
         "id": "crusher",
         "label": "Дробильное оборудование",
-        "queries": [
-            "ремонт дробилки щековой конусной",
-            "поставка дробильного оборудования",
-            "запчасти дробилки грохот",
-        ],
+        "queries": ["дробильное оборудование", "дробилка запчасти ремонт"],
         "category": "Дробильное оборудование",
     },
     {
         "id": "smr",
         "label": "СМР",
-        "queries": [
-            "строительно-монтажные работы",
-            "монтаж оборудования подряд",
-            "строительный подряд смр",
-        ],
+        "queries": ["строительно-монтажные работы", "монтаж оборудования подряд"],
         "category": "СМР (строительно-монтажные работы)",
     },
     {
         "id": "finishing",
         "label": "Отделочные работы",
-        "queries": [
-            "отделочные работы тендер",
-            "ремонт отделка помещений подряд",
-            "внутренняя отделка фасад",
-        ],
+        "queries": ["отделочные работы", "ремонт отделка помещений"],
         "category": "Отделочные работы",
     },
 ]
 
 
-def fetch_page(host: str, path: str, timeout=8) -> str:
+def fetch_url(scheme: str, host: str, path: str, timeout=9) -> tuple:
     try:
-        conn = http.client.HTTPSConnection(host, timeout=timeout)
+        if scheme == "https":
+            conn = http.client.HTTPSConnection(host, timeout=timeout)
+        else:
+            conn = http.client.HTTPConnection(host, timeout=timeout)
         conn.request("GET", path, headers=HEADERS)
         res = conn.getresponse()
         if res.status in (301, 302, 303, 307, 308):
@@ -72,106 +65,126 @@ def fetch_page(host: str, path: str, timeout=8) -> str:
             conn.close()
             if loc.startswith("http"):
                 p = urllib.parse.urlparse(loc)
-                return fetch_page(p.netloc, p.path + ("?" + p.query if p.query else ""), timeout)
-        raw = res.read(80_000).decode("utf-8", errors="replace")
+                s = "https" if p.scheme == "https" else "http"
+                return fetch_url(s, p.netloc, p.path + ("?" + p.query if p.query else ""), timeout)
+            return "", res.status
+        raw = res.read(150_000).decode("utf-8", errors="replace")
         conn.close()
-        print(f"[scrape] {host}{path[:60]} -> {len(raw)} bytes, status={res.status}")
-        return raw
+        return raw, res.status
     except Exception as e:
-        print(f"[scrape ERROR] {host}{path[:60]}: {e}")
-        return ""
+        print(f"[fetch ERROR] {host}: {e}")
+        return "", 0
 
 
-def strip_html(html: str, max_len=6000) -> str:
+def strip_html(html: str, max_len=8000) -> str:
     text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<[^>]+>', ' ', text)
-    text = re.sub(r'&[a-z#0-9]+;', ' ', text)
+    text = re.sub(r'&nbsp;', ' ', text)
+    text = re.sub(r'&[a-z#0-9]+;', '', text)
     text = re.sub(r'\s{3,}', '\n', text)
     return text.strip()[:max_len]
 
 
-# ─── Площадки (выбраны самые быстрые и открытые) ──────────────────────────────
+# ─── Площадки ─────────────────────────────────────────────────────────────────
 
-def scrape_bicotender(q: str) -> tuple[str, str]:
+def scrape_zakupki_44(q: str) -> tuple:
     enc = urllib.parse.quote(q)
-    html = fetch_page("bicotender.ru", f"/tender-search/?q={enc}")
+    html, status = fetch_url("https", "zakupki.gov.ru",
+        f"/epz/order/extendedsearch/results.html?searchString={enc}&morphology=on&fz44=on&pageNumber=1&sortBy=UPDATE_DATE&sortDirection=false&recordsPerPage=_10")
+    print(f"[zakupki-44] status={status}, len={len(html)}")
+    return strip_html(html), "zakupki.gov.ru (44-ФЗ)"
+
+
+def scrape_zakupki_223(q: str) -> tuple:
+    enc = urllib.parse.quote(q)
+    html, status = fetch_url("https", "zakupki.gov.ru",
+        f"/epz/order/extendedsearch/results.html?searchString={enc}&morphology=on&fz223=on&pageNumber=1&sortBy=UPDATE_DATE&sortDirection=false&recordsPerPage=_10")
+    print(f"[zakupki-223] status={status}, len={len(html)}")
+    return strip_html(html), "zakupki.gov.ru (223-ФЗ)"
+
+
+def scrape_tendery(q: str) -> tuple:
+    enc = urllib.parse.quote(q)
+    html, status = fetch_url("https", "www.tendery.ru", f"/search/?q={enc}")
+    print(f"[tendery.ru] status={status}, len={len(html)}")
+    return strip_html(html), "tendery.ru"
+
+
+def scrape_bicotender(q: str) -> tuple:
+    enc = urllib.parse.quote(q)
+    html, status = fetch_url("https", "bicotender.ru", f"/?search={enc}")
+    print(f"[bicotender] status={status}, len={len(html)}")
     return strip_html(html), "bicotender.ru"
 
 
-def scrape_fabrikant(q: str) -> tuple[str, str]:
+def scrape_sbast(q: str) -> tuple:
     enc = urllib.parse.quote(q)
-    html = fetch_page("www.fabrikant.ru", f"/trades/search/?q={enc}&type=buy&per_page=30")
-    return strip_html(html), "fabrikant.ru"
+    html, status = fetch_url("https", "tender.sberbank-ast.ru",
+        f"/public/tender/list?q={enc}&status=active")
+    print(f"[sberbank-ast] status={status}, len={len(html)}")
+    return strip_html(html), "sberbank-ast.ru"
 
 
-def scrape_b2b(q: str) -> tuple[str, str]:
+def scrape_tektorg(q: str) -> tuple:
     enc = urllib.parse.quote(q)
-    html = fetch_page("www.b2b-center.ru", f"/market/find.asp?what=0&search={enc}")
-    return strip_html(html), "b2b-center.ru"
+    html, status = fetch_url("https", "www.tektorg.ru",
+        f"/procedures?searchText={enc}")
+    print(f"[tektorg] status={status}, len={len(html)}")
+    return strip_html(html), "tektorg.ru"
 
 
-def scrape_tenderpro(q: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(q)
-    html = fetch_page("www.tender.pro", f"/tenders?q={enc}&status=open")
-    return strip_html(html), "tender.pro"
+SCRAPERS = [
+    scrape_zakupki_44,
+    scrape_zakupki_223,
+    scrape_tendery,
+    scrape_bicotender,
+    scrape_sbast,
+    scrape_tektorg,
+]
 
 
-def scrape_rts(q: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(q)
-    html = fetch_page("www.rts-tender.ru", f"/tender/procedure/list?searchText={enc}&pageSize=20")
-    return strip_html(html), "rts-tender.ru"
-
-
-SCRAPERS = [scrape_bicotender, scrape_fabrikant, scrape_b2b, scrape_tenderpro, scrape_rts]
-
-
-def scrape_all(query: str) -> list[tuple[str, str]]:
-    """Скрапим все площадки параллельно по одному запросу."""
+def scrape_all(query: str) -> list:
     pages = []
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    with ThreadPoolExecutor(max_workers=6) as ex:
         futs = {ex.submit(fn, query): fn.__name__ for fn in SCRAPERS}
-        for fut in as_completed(futs, timeout=10):
+        for fut in as_completed(futs, timeout=12):
             try:
                 text, src = fut.result()
-                if len(text.strip()) > 200:
+                if len(text.strip()) > 300:
                     pages.append((text, src))
-                    print(f"[ok] {src}: {len(text)} chars")
+                    print(f"[OK] {src}: {len(text)} chars")
                 else:
-                    print(f"[empty] {futs[fut]}: too short ({len(text)} chars)")
+                    print(f"[EMPTY] {futs[fut]}: {len(text)} chars")
             except Exception as e:
-                print(f"[err] {futs[fut]}: {e}")
+                print(f"[ERR] {futs[fut]}: {e}")
     return pages
 
 
 # ─── DeepSeek ─────────────────────────────────────────────────────────────────
 
-def deepseek_extract(topic: dict, pages: list[tuple[str, str]]) -> list[dict]:
+def deepseek_extract(topic: dict, pages: list) -> list:
     api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
         print("[deepseek] NO API KEY")
         return []
     if not pages:
-        print("[deepseek] no pages to analyze")
+        print("[deepseek] no pages")
         return []
 
-    context = "\n\n".join(f"=== {src} ===\n{txt[:2500]}" for txt, src in pages[:5])
-    print(f"[deepseek] sending {len(context)} chars, {len(pages)} sources")
+    context = "\n\n".join(f"=== {src} ===\n{txt[:2000]}" for txt, src in pages[:6])
+    print(f"[deepseek] {len(context)} chars, {len(pages)} sources, key={api_key[:8]}...")
 
-    prompt = f"""Направление бизнеса: {topic['label']}
+    prompt = f"""Направление: {topic['label']}
 
-Из текста ниже извлеки ВСЕ конкретные тендеры/закупки/заказы по теме "{topic['label']}".
+Из текста ниже извлеки ВСЕ конкретные тендеры/закупки по теме "{topic['label']}".
+Только конкретный тендер с номером или названием — НЕ каталоги и рекламу.
+URL — прямая ссылка на тендер. Если не видно — составь из домена + номера.
 
-ПРАВИЛА:
-- Только конкретный тендер с названием и/или номером — НЕ каталоги, списки компаний, рекламу
-- URL должен вести на страницу конкретного тендера (содержит числовой ID или номер)
-- Если URL не виден — составь из домена + номера (например https://bicotender.ru/tender123456.html)
-- Нерелевантные тендеры — пропускай
+Верни ТОЛЬКО JSON:
+{{"tenders":[{{"title":"...","number":"...","url":"https://...","customer":"...","region":"...","price":null,"deadline":null,"published":null,"source":"домен","proc_type":"тип"}}]}}
 
-Верни ТОЛЬКО JSON без пояснений:
-{{"tenders":[{{"title":"название тендера","number":"номер/ID","url":"https://прямая-ссылка","customer":"заказчик","region":"регион России","price":null,"deadline":"YYYY-MM-DD или null","published":"YYYY-MM-DD или null","source":"bicotender.ru/fabrikant.ru/b2b-center.ru/tender.pro/rts-tender.ru","proc_type":"Ремонт оборудования/Поставка/СМР/Отделочные работы"}}]}}
-
-Текст страниц:
+Текст:
 {context}"""
 
     try:
@@ -188,29 +201,31 @@ def deepseek_extract(topic: dict, pages: list[tuple[str, str]]) -> list[dict]:
             "Content-Type": "application/json",
         })
         res = conn.getresponse()
-        raw = res.read(150_000).decode("utf-8", errors="replace")
+        raw = res.read(200_000).decode("utf-8", errors="replace")
         conn.close()
         data = json.loads(raw)
-        print(f"[deepseek] usage: {data.get('usage')}")
+        print(f"[deepseek] http={res.status}, keys={list(data.keys())}")
+        if "error" in data:
+            print(f"[deepseek API ERROR] {data['error']}")
+            return []
         content = data["choices"][0]["message"]["content"]
         tenders = json.loads(content).get("tenders", [])
         print(f"[deepseek] extracted {len(tenders)} tenders")
         return tenders
     except Exception as e:
-        print(f"[deepseek ERROR] {e}")
+        print(f"[deepseek EXCEPTION] {e}")
         return []
 
 
-def process_topic(topic: dict) -> list[dict]:
-    # Берём 2 разных запроса → скрапим по каждому → объединяем страницы
+def process_topic(topic: dict) -> list:
     all_pages = []
-    seen_srcs = set()
+    seen = set()
     for q in topic["queries"][:2]:
         pages = scrape_all(q)
         for text, src in pages:
-            key = f"{src}-{q}"
-            if key not in seen_srcs:
-                seen_srcs.add(key)
+            key = f"{src}||{q}"
+            if key not in seen:
+                seen.add(key)
                 all_pages.append((text, src))
 
     tenders = deepseek_extract(topic, all_pages)
@@ -257,7 +272,7 @@ def process_topic(topic: dict) -> list[dict]:
 
 
 def handler(event: dict, context) -> dict:
-    """Поиск тендеров: скрапинг 5 площадок → DeepSeek извлекает конкретные тендеры."""
+    """Поиск тендеров: скрапинг zakupki.gov + агрегаторов → DeepSeek извлекает тендеры."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
@@ -288,9 +303,8 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"error": "Неизвестное направление", "results": [], "total": 0}, ensure_ascii=False),
         }
 
-    # Обрабатываем одно направление за вызов (укладываемся в таймаут)
     topic = topics[0]
-    print(f"[handler] topic={topic['id']}, label={topic['label']}")
+    print(f"[handler] topic={topic['id']}")
 
     try:
         results = process_topic(topic)
@@ -301,7 +315,7 @@ def handler(event: dict, context) -> dict:
     for i, r in enumerate(results):
         r["id"] = 1000 + i + 1
 
-    print(f"[handler] done, {len(results)} results")
+    print(f"[handler] done: {len(results)} results")
     return {
         "statusCode": 200,
         "headers": {**CORS, "Content-Type": "application/json"},
