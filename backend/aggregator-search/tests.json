@@ -1,12 +1,21 @@
 {
   "tests": [
     {
-      "name": "Поиск токарных работ",
+      "name": "Поиск возвращает поле query",
       "method": "POST",
       "path": "/",
-      "body": {"query": "токарные работы Екатеринбург", "category": "turning"},
+      "body": {"query": "токарные работы"},
       "expectedStatus": 200,
-      "expectedBody": {"results": []},
+      "expectedBody": {"query": "токарные работы"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Пустой запрос — ошибка",
+      "method": "POST",
+      "path": "/",
+      "body": {"query": ""},
+      "expectedStatus": 400,
+      "expectedBody": {},
       "bodyMatcher": "partial"
     },
     {
