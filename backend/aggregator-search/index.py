@@ -1,11 +1,7 @@
 """
-Поиск реальных тендеров через открытые API без ключей:
-- zakupki.gov.ru (госзакупки 44-ФЗ + 223-ФЗ) — конкретные закупки с номерами
-- metallportal.com, metalloobrabotchiki.ru (RSS — конкретные заявки)
-- fabrikant.ru, b2b-center.ru, roseltorg.ru (RSS тендеры с ID)
-- tendermedia.ru, bicotender.ru (агрегаторы тендеров)
-- Serper.dev — поиск только по тендерным площадкам (если SERPER_API_KEY задан)
-- OpenAI — финальная фильтрация (если OPENAI_API_KEY задан)
+Поиск конкретных тендеров — каждый результат это один тендер с уникальным ID/номером.
+Источники: zakupki.gov.ru API, RSS metallportal/fabrikant/b2b-center/roseltorg/bicotender/tenders.ru
+Serper.dev — только если SERPER_API_KEY задан.
 """
 import json
 import os
@@ -13,6 +9,7 @@ import http.client
 import urllib.parse
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -20,23 +17,61 @@ CORS = {
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept": "application/rss+xml,text/xml,*/*"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/rss+xml,text/xml,*/*"
+}
 
-import re
+# Домены, которые публикуют СПИСКИ тендеров, а не сами тендеры
+BLACKLIST_DOMAINS = re.compile(
+    r'(initpro\.ru|tenderbase\.ru|tenderguru\.ru|zakazrf\.ru|findtenders\.ru'
+    r'|tenderplan\.ru|bicotender\.ru/tender-search|tendereasy\.ru'
+    r'|clearspending\.ru|e-disclosure\.ru|seldon\.ru|zakupki24\.ru'
+    r'|region-categories|/tendery-na-|/zakupki-na-|/tenders/search)',
+    re.IGNORECASE
+)
+
+# Паттерны URL каталогов/поиска/страниц пагинации
+CATALOG_URL = re.compile(
+    r'(/search[/?]|/catalog|/category|/tags?[/?]|[?&]page=|/results[/?]'
+    r'|/extendedsearch|/list[/?]|/filter|/region-|/all$|/tendery|/zakupki-na)',
+    re.IGNORECASE
+)
+
+# Тендерные площадки: URL конкретного тендера обязательно содержит числовой ID
+TENDER_ID_REQUIRED = re.compile(
+    r'(fabrikant\.ru|b2b-center\.ru|roseltorg\.ru|bicotender\.ru'
+    r'|tenders\.ru|zakupki\.gov\.ru|tender\.pro|zakupki\.kontur\.ru'
+    r'|sberbank-ast\.ru|rts-tender\.ru|etp-ets\.ru|etpgpb\.ru|astgoz\.ru)',
+    re.IGNORECASE
+)
+
+
+def is_real_tender_url(url: str) -> bool:
+    """Проверяет что URL ведёт на конкретный тендер, а не список/каталог."""
+    if not url or len(url) < 10:
+        return False
+    # Чёрный список доменов-агрегаторов-листингов
+    if BLACKLIST_DOMAINS.search(url):
+        return False
+    # Паттерны страниц-каталогов
+    if CATALOG_URL.search(url):
+        return False
+    # Для тендерных площадок — обязательно числовой ID ≥5 цифр
+    if TENDER_ID_REQUIRED.search(url):
+        if not re.search(r'\d{5,}', url):
+            return False
+    return True
+
 
 def extract_tender_number(url, title="", desc=""):
-    """Извлекает номер тендера из URL, заголовка или описания."""
-    # Сначала ищем явные паттерны номеров тендеров
     for text in [desc, title, url]:
-        # №12345678 или #12345678
         m = re.search(r'[№#]\s*(\d{5,})', text)
         if m:
             return "№" + m.group(1)
-    # Длинные числовые ID в URL (от 7 цифр — номера закупок)
     m = re.search(r'\b(\d{7,})\b', url)
     if m:
         return m.group(1)
-    # Fallback — последний сегмент пути без расширения
     slug = url.rstrip("/").split("/")[-1]
     slug = re.sub(r'\.[a-z]{2,4}$', '', slug)
     return slug or "—"
@@ -44,7 +79,7 @@ def extract_tender_number(url, title="", desc=""):
 
 def make_order(source, title, url, desc="", customer="Заказчик", region="Россия",
                price_to=None, deadline=None, published=None,
-               proc_type="Металлообработка", category="Металлообработка", platform="tender"):
+               proc_type="Тендер", category="Металлообработка", platform="tender"):
     return {
         "id": 0,
         "external_id": extract_tender_number(url, title, desc),
@@ -88,24 +123,20 @@ def fetch_rss(host, path, use_https=True, timeout=8):
         return []
 
 
-CATALOG_URL = re.compile(
-    r'(category|tags?|/search\?|catalog|tendery-na|zakupki-na|/results|/list|/extendedsearch|page=)',
-    re.IGNORECASE
-)
-
-def rss_to_orders(items, source, category, platform, limit=15):
+def rss_to_orders(items, source, category, platform, proc_type="Тендер", limit=20):
     results = []
     for item in items[:limit]:
         title = (item.findtext("title") or "").strip()
         link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        pub = (item.findtext("pubDate") or "")[:10]
+        desc = (item.findtext("description") or item.findtext("summary") or "").strip()
+        pub = (item.findtext("pubDate") or item.findtext("published") or "")[:10]
         if not title or not link:
             continue
-        # Пропускаем страницы-каталоги без конкретного ID тендера
-        if CATALOG_URL.search(link):
+        if not is_real_tender_url(link):
             continue
-        results.append(make_order(source, title, link, desc, published=pub, category=category, platform=platform))
+        results.append(make_order(source, title, link, desc,
+                                  published=pub, category=category,
+                                  platform=platform, proc_type=proc_type))
     return results
 
 
@@ -114,122 +145,54 @@ def rss_to_orders(items, source, category, platform, limit=15):
 def src_metallportal(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("metallportal.com", f"/zakazi/rss/?search={enc}")
-    return rss_to_orders(items, "metallportal.com", "Металлообработка", "service")
+    return rss_to_orders(items, "metallportal.com", "Металлообработка", "service",
+                         proc_type="Металлообработка")
 
 
 def src_metalloobrabotchiki(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("metalloobrabotchiki.ru", f"/orders/rss/?q={enc}")
-    return rss_to_orders(items, "metalloobrabotchiki.ru", "Металлообработка", "service")
-
-
-def src_rusmet(query):
-    enc = urllib.parse.quote(query)
-    items = fetch_rss("rusmet.ru", f"/index.php?do=rss&q={enc}")
-    return rss_to_orders(items, "rusmet.ru", "Металлообработка", "service")
-
-
-def src_tiu(query):
-    enc = urllib.parse.quote(query)
-    items = fetch_rss("tiu.ru", f"/rss/products/?q={enc}")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        if not title:
-            continue
-        results.append(make_order("tiu.ru", title, link, desc, category="Металлообработка", platform="service"))
-    return results
-
-
-def src_pulscen(query):
-    enc = urllib.parse.quote(query)
-    items = fetch_rss("pulscen.ru", f"/rss/offers/?q={enc}")
-    return rss_to_orders(items, "pulscen.ru", "Металлообработка", "service")
+    return rss_to_orders(items, "metalloobrabotchiki.ru", "Металлообработка", "service",
+                         proc_type="Металлообработка")
 
 
 def src_fabrikant(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("www.fabrikant.ru", f"/trades/atom/?searchText={enc}&tradeType=purchase")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("summary") or item.findtext("description") or "").strip()
-        pub = (item.findtext("published") or item.findtext("pubDate") or "")[:10]
-        if not title:
-            continue
-        results.append(make_order("fabrikant.ru", title, link, desc, published=pub,
-                                  proc_type="Тендер", category="Металлообработка", platform="tender"))
-    return results
+    return rss_to_orders(items, "fabrikant.ru", "Металлообработка", "tender",
+                         proc_type="Тендер")
 
 
 def src_b2b_center(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("www.b2b-center.ru", f"/rss/trade/?search={enc}&deal_type=buy")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        pub = (item.findtext("pubDate") or "")[:10]
-        if not title:
-            continue
-        results.append(make_order("b2b-center.ru", title, link, desc, published=pub,
-                                  proc_type="Тендер", category="Металлообработка", platform="tender"))
-    return results
+    return rss_to_orders(items, "b2b-center.ru", "Металлообработка", "tender",
+                         proc_type="Тендер")
 
 
 def src_roseltorg(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("www.roseltorg.ru", f"/rss/procedures/?q={enc}")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        pub = (item.findtext("pubDate") or "")[:10]
-        if not title:
-            continue
-        results.append(make_order("roseltorg.ru", title, link, desc, published=pub,
-                                  proc_type="Тендер / Госзакупка", category="СМР (строительно-монтажные работы)", platform="tender"))
-    return results
+    return rss_to_orders(items, "roseltorg.ru", "СМР (строительно-монтажные работы)", "tender",
+                         proc_type="Тендер / Госзакупка")
 
 
 def src_bicotender(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("bicotender.ru", f"/rss/?q={enc}")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        pub = (item.findtext("pubDate") or "")[:10]
-        if not title:
-            continue
-        results.append(make_order("bicotender.ru", title, link, desc, published=pub,
-                                  proc_type="Тендер", category="Металлообработка", platform="tender"))
-    return results
+    return rss_to_orders(items, "bicotender.ru", "Металлообработка", "tender",
+                         proc_type="Тендер")
 
 
 def src_tenders_ru(query):
     enc = urllib.parse.quote(query)
     items = fetch_rss("www.tenders.ru", f"/rss/goszakupki/?q={enc}")
-    results = []
-    for item in items[:15]:
-        title = (item.findtext("title") or "").strip()
-        link = (item.findtext("link") or "").strip()
-        desc = (item.findtext("description") or "").strip()
-        pub = (item.findtext("pubDate") or "")[:10]
-        if not title:
-            continue
-        results.append(make_order("tenders.ru", title, link, desc, published=pub,
-                                  proc_type="Тендер / Госзакупка", category="СМР (строительно-монтажные работы)", platform="tender"))
-    return results
+    return rss_to_orders(items, "tenders.ru", "Металлообработка", "tender",
+                         proc_type="Тендер / Госзакупка")
 
 
 def src_zakupki_gov(query, limit=25):
+    """API zakupki.gov.ru — возвращает только конкретные закупки с номером."""
     results = []
     try:
         params = urllib.parse.urlencode({
@@ -250,12 +213,15 @@ def src_zakupki_gov(query, limit=25):
         data = json.loads(raw)
         is_smr = any(w in query.lower() for w in ["смр", "строит", "монтаж", "подряд", "ремонт"])
         for item in data.get("data", {}).get("list", [])[:limit]:
-            price = item.get("maxPrice")
             num = item.get("purchaseNumber", "")
-            results.append(make_order(
+            if not num:
+                continue
+            price = item.get("maxPrice")
+            url = f"https://zakupki.gov.ru/epz/order/notice/ea44/view/common-info.html?regNumber={num}"
+            order = make_order(
                 "zakupki.gov.ru",
                 (item.get("purchaseObjectInfo") or item.get("lotDescription") or "Закупка")[:120],
-                f"https://zakupki.gov.ru/epz/order/notice/ea44/view/common-info.html?regNumber={num}",
+                url,
                 (item.get("lotDescription") or "")[:300],
                 customer=item.get("organizationName", "—"),
                 region=item.get("regionName", "—"),
@@ -265,39 +231,27 @@ def src_zakupki_gov(query, limit=25):
                 proc_type="Тендер / Госзакупка",
                 category="СМР (строительно-монтажные работы)" if is_smr else "Металлообработка",
                 platform="tender",
-            ))
-            results[-1]["external_id"] = num
-            results[-1]["contact_info"] = item.get("contactInfo") or "Контакты через zakupki.gov.ru"
+            )
+            order["external_id"] = num
+            order["contact_info"] = item.get("contactInfo") or "Контакты через zakupki.gov.ru"
+            results.append(order)
     except Exception:
         pass
     return results
 
 
-def src_all_biz(query):
-    enc = urllib.parse.quote(query)
-    items = fetch_rss("all.biz", f"/ru/rss/tenders/?search={enc}")
-    return rss_to_orders(items, "all.biz", "Металлообработка", "tender")
-
-
-def src_torgiplaza(query):
-    enc = urllib.parse.quote(query)
-    items = fetch_rss("torgiplaza.ru", f"/rss/orders/?q={enc}")
-    return rss_to_orders(items, "torgiplaza.ru", "Металлообработка", "tender")
-
-
-# ─── Serper.dev + OpenAI ──────────────────────────────────────────────────────
-
 def src_serper(query: str) -> list:
-    """Поиск только по тендерным площадкам через Serper.dev (если SERPER_API_KEY задан)."""
+    """Поиск через Serper.dev только по проверенным тендерным площадкам."""
     api_key = os.environ.get("SERPER_API_KEY", "")
     if not api_key:
         return []
 
-    # Только конкретные тендерные площадки — без досок объявлений и каталогов
+    # Только площадки, где URL конкретного тендера содержит числовой ID
     tender_sites = (
         "site:zakupki.gov.ru OR site:fabrikant.ru OR site:b2b-center.ru "
-        "OR site:roseltorg.ru OR site:tendermedia.ru OR site:metallportal.com "
-        "OR site:tender.pro OR site:zakupki.kontur.ru OR site:sberbank-ast.ru"
+        "OR site:roseltorg.ru OR site:metallportal.com "
+        "OR site:tender.pro OR site:zakupki.kontur.ru OR site:sberbank-ast.ru "
+        "OR site:rts-tender.ru OR site:etp-ets.ru"
     )
     queries = [
         f"{query} тендер закупка {tender_sites}",
@@ -307,17 +261,14 @@ def src_serper(query: str) -> list:
     results = []
     seen = set()
 
-    # Паттерны URL страниц-каталогов — отсеиваем
-    CATALOG_PATTERNS = re.compile(
-        r'(category|tags?|search|catalog|list|tendery-na|zakupki-na|/results|/extendedsearch)',
-        re.IGNORECASE
-    )
-
     for q in queries:
         try:
             payload = json.dumps({"q": q, "gl": "ru", "hl": "ru", "num": 10})
             conn = http.client.HTTPSConnection("google.serper.dev", timeout=10)
-            conn.request("POST", "/search", payload, {"X-API-KEY": api_key, "Content-Type": "application/json"})
+            conn.request("POST", "/search", payload, {
+                "X-API-KEY": api_key,
+                "Content-Type": "application/json"
+            })
             res = conn.getresponse()
             data = json.loads(res.read().decode("utf-8", errors="replace"))
             conn.close()
@@ -325,11 +276,7 @@ def src_serper(query: str) -> list:
                 link = item.get("link", "")
                 if not link or link in seen:
                     continue
-                # Пропускаем страницы-каталоги без конкретного ID
-                if CATALOG_PATTERNS.search(link):
-                    continue
-                # Требуем числовой ID в URL (реальный тендер)
-                if not re.search(r'\d{4,}', link):
+                if not is_real_tender_url(link):
                     continue
                 seen.add(link)
                 source = item.get("displayLink", link)
@@ -348,7 +295,7 @@ def src_serper(query: str) -> list:
 
 
 def openai_filter(query: str, results: list) -> list:
-    """Фильтрует и ранжирует результаты через OpenAI — если OPENAI_API_KEY задан."""
+    """Финальная фильтрация через OpenAI — если OPENAI_API_KEY задан."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key or not results:
         return results
@@ -358,15 +305,17 @@ def openai_filter(query: str, results: list) -> list:
         for i, r in enumerate(results[:40])
     ])
 
-    prompt = f"""Запрос пользователя: "{query}"
+    prompt = f"""Запрос: "{query}"
 
-Найденные результаты:
+Результаты:
 {results_text}
 
-Оставь только те результаты, которые реально относятся к заказам, тендерам, объявлениям о работах или поставках по теме запроса. Убери новости, статьи, общие страницы сайтов.
+Оставь ТОЛЬКО конкретные тендеры/заявки/закупки с уникальным ID. Убери:
+- страницы списков тендеров
+- новости, статьи, обзоры
+- общие страницы сайтов без конкретного тендера
 
-Верни JSON: {{"keep": [список номеров из [...] которые нужно оставить], "categories": {{"номер": "токарные работы|тендер|оборудование|подряд|другое"}}}}
-
+Верни JSON: {{"keep": [номера], "categories": {{"номер": "токарные работы|тендер|металлообработка|подряд|другое"}}}}
 Только JSON, без пояснений."""
 
     try:
@@ -395,7 +344,6 @@ def openai_filter(query: str, results: list) -> list:
                 if cat:
                     r["processing_types"] = cat
                 filtered.append(r)
-        # Добавляем оставшиеся (41+) без фильтрации
         filtered += results[40:]
         return filtered
     except Exception:
@@ -405,20 +353,20 @@ def openai_filter(query: str, results: list) -> list:
 # ─── Handler ──────────────────────────────────────────────────────────────────
 
 SOURCES = [
-    src_metallportal,       # RSS конкретных заявок
-    src_metalloobrabotchiki,# RSS конкретных заказов
-    src_fabrikant,          # RSS тендеров с ID
-    src_b2b_center,         # RSS тендеров с ID
-    src_roseltorg,          # RSS госзакупок
-    src_bicotender,         # RSS тендеров
-    src_tenders_ru,         # RSS госзакупок
-    src_zakupki_gov,        # API госзакупок — самый надёжный источник
-    src_serper,             # Google по тендерным площадкам (если SERPER_API_KEY)
+    src_metallportal,
+    src_metalloobrabotchiki,
+    src_fabrikant,
+    src_b2b_center,
+    src_roseltorg,
+    src_bicotender,
+    src_tenders_ru,
+    src_zakupki_gov,
+    src_serper,
 ]
 
 
 def handler(event: dict, context) -> dict:
-    """Параллельный поиск заказов по 14 источникам. При наличии ключей подключаются Serper + OpenAI."""
+    """Поиск конкретных тендеров. Каждый результат — один тендер с уникальным ID/номером."""
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
@@ -431,7 +379,6 @@ def handler(event: dict, context) -> dict:
     all_results = []
     seen_urls = set()
 
-    # Параллельный запрос ко всем источникам
     with ThreadPoolExecutor(max_workers=9) as ex:
         futures = {ex.submit(src, query): src.__name__ for src in SOURCES}
         for future in as_completed(futures):
@@ -445,15 +392,11 @@ def handler(event: dict, context) -> dict:
             except Exception:
                 pass
 
-    # ИИ-фильтрация через OpenAI (если ключ задан)
+    # ИИ-фильтрация (если OPENAI_API_KEY задан)
     all_results = openai_filter(query, all_results)
 
-    # Нумерация
     for i, r in enumerate(all_results):
         r["id"] = 1000 + i + 1
-
-    has_serper = bool(os.environ.get("SERPER_API_KEY"))
-    has_openai = bool(os.environ.get("OPENAI_API_KEY"))
 
     return {
         "statusCode": 200,
@@ -462,7 +405,5 @@ def handler(event: dict, context) -> dict:
             "results": all_results,
             "total": len(all_results),
             "query": query,
-            "sources_used": 13 + (1 if has_serper else 0),
-            "ai_filtered": has_openai,
         }, ensure_ascii=False),
     }
