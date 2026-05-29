@@ -128,8 +128,10 @@ def scrape_query(q: str) -> list[tuple[str, str]]:
 # ─── DeepSeek: извлекает тендеры из текста площадок ──────────────────────────
 
 def deepseek_extract(topic: dict, pages: list[tuple[str, str]]) -> list[dict]:
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key or not pages:
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY не задан — добавьте ключ в секреты проекта")
+    if not pages:
         return []
 
     context = "\n\n".join(
@@ -284,6 +286,18 @@ def handler(event: dict, context) -> dict:
             "statusCode": 400,
             "headers": CORS,
             "body": json.dumps({"error": "Неизвестное направление"}, ensure_ascii=False),
+        }
+
+    # Проверяем ключ до запуска
+    if not os.environ.get("DEEPSEEK_API_KEY", "").strip():
+        return {
+            "statusCode": 503,
+            "headers": CORS,
+            "body": json.dumps({
+                "error": "DEEPSEEK_API_KEY не задан. Добавьте ключ в Ядро → Секреты → DEEPSEEK_API_KEY. Получить: platform.deepseek.com",
+                "results": [],
+                "total": 0,
+            }, ensure_ascii=False),
         }
 
     all_results = []
