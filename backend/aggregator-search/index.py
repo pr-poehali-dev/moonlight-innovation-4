@@ -1,11 +1,12 @@
 """
-Поиск тендеров через DeepSeek:
-1. DeepSeek получает запрос пользователя
-2. Скрапим страницы поиска тендерных площадок (bicotender, zakupki.kontur, fabrikant и др.)
-3. DeepSeek разбирает HTML → извлекает конкретные тендеры с номерами и прямыми ссылками
-4. Возвращаем структурированный список — каждая строка = один тендер
+Автоматический поиск тендеров по 4 направлениям бизнеса:
+1. Горное оборудование — ремонт и поставка
+2. Дробильное оборудование — ремонт и поставка
+3. Строительно-монтажные работы (СМР)
+4. Отделочные работы
 
-Без сторонних API (Serper, zakupki.gov API, tender.pro API и т.д.)
+Процесс: скрапинг 5 тендерных площадок → DeepSeek извлекает конкретные тендеры
+Без сторонних платных API.
 """
 import json
 import os
@@ -23,11 +24,55 @@ CORS = {
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
 HEADERS = {"User-Agent": UA, "Accept": "text/html,*/*", "Accept-Language": "ru-RU,ru;q=0.9"}
 
+# ─── 4 направления бизнеса — фиксированные поисковые запросы ──────────────────
 
-# ─── Скрапинг страниц поиска тендерных площадок ───────────────────────────────
+SEARCH_TOPICS = [
+    {
+        "id": "mining",
+        "label": "Горное оборудование",
+        "queries": [
+            "ремонт горного оборудования",
+            "поставка горного оборудования",
+            "ремонт шахтного оборудования",
+        ],
+        "category": "Горное оборудование",
+    },
+    {
+        "id": "crusher",
+        "label": "Дробильное оборудование",
+        "queries": [
+            "ремонт дробильного оборудования",
+            "поставка дробилки щековой конусной",
+            "ремонт дробилки запчасти",
+        ],
+        "category": "Дробильное оборудование",
+    },
+    {
+        "id": "smr",
+        "label": "СМР",
+        "queries": [
+            "строительно-монтажные работы тендер",
+            "СМР подряд",
+            "монтаж оборудования строительство",
+        ],
+        "category": "СМР (строительно-монтажные работы)",
+    },
+    {
+        "id": "finishing",
+        "label": "Отделочные работы",
+        "queries": [
+            "отделочные работы тендер",
+            "ремонт отделка помещений подряд",
+            "отделка фасада внутренняя отделка",
+        ],
+        "category": "Отделочные работы",
+    },
+]
 
-def fetch_page(host: str, path: str, timeout=12) -> str:
-    """Загружает HTML страницу и возвращает текст (до 80 Кб)."""
+
+# ─── Скрапинг тендерных площадок ──────────────────────────────────────────────
+
+def fetch_page(host: str, path: str, timeout=10) -> str:
     try:
         conn = http.client.HTTPSConnection(host, timeout=timeout)
         conn.request("GET", path, headers=HEADERS)
@@ -36,107 +81,87 @@ def fetch_page(host: str, path: str, timeout=12) -> str:
             loc = res.getheader("Location", "")
             conn.close()
             if loc.startswith("http"):
-                parsed = urllib.parse.urlparse(loc)
-                return fetch_page(parsed.netloc, parsed.path + ("?" + parsed.query if parsed.query else ""))
-        raw = res.read(80_000).decode("utf-8", errors="replace")
+                p = urllib.parse.urlparse(loc)
+                return fetch_page(p.netloc, p.path + ("?" + p.query if p.query else ""))
+        raw = res.read(60_000).decode("utf-8", errors="replace")
         conn.close()
         return raw
     except Exception:
         return ""
 
 
-def strip_html(html: str) -> str:
-    """Убирает теги, лишние пробелы — оставляет читаемый текст."""
+def strip_html(html: str, max_len=4000) -> str:
     text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<[^>]+>', ' ', text)
     text = re.sub(r'&nbsp;', ' ', text)
-    text = re.sub(r'&[a-z]+;', ' ', text)
+    text = re.sub(r'&[a-z#0-9]+;', ' ', text)
     text = re.sub(r'\s{3,}', '\n', text)
-    return text.strip()[:15_000]
+    return text.strip()[:max_len]
 
 
-def scrape_bicotender(query: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(query)
-    url = f"https://bicotender.ru/tender-search/?q={enc}"
-    html = fetch_page("bicotender.ru", f"/tender-search/?q={enc}")
-    return strip_html(html), "bicotender.ru"
+def scrape_query(q: str) -> list[tuple[str, str]]:
+    """Скрапит 5 площадок по одному запросу, возвращает [(text, source), ...]."""
+    enc = urllib.parse.quote(q)
+    targets = [
+        ("bicotender.ru",      f"/tender-search/?q={enc}",                    "bicotender.ru"),
+        ("zakupki.kontur.ru",  f"/search?query={enc}&status=application",      "zakupki.kontur.ru"),
+        ("www.fabrikant.ru",   f"/trades/search/?q={enc}&type=buy",            "fabrikant.ru"),
+        ("www.rts-tender.ru",  f"/tender/procedure/list?searchText={enc}",     "rts-tender.ru"),
+        ("www.b2b-center.ru",  f"/rss/trade/?search={enc}&deal_type=buy",      "b2b-center.ru"),
+    ]
+    results = []
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        futs = {ex.submit(fetch_page, host, path): src for host, path, src in targets}
+        for fut in as_completed(futs):
+            src = futs[fut]
+            try:
+                html = fut.result()
+                text = strip_html(html)
+                if len(text) > 100:
+                    results.append((text, src))
+            except Exception:
+                pass
+    return results
 
 
-def scrape_kontur(query: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(query)
-    html = fetch_page("zakupki.kontur.ru", f"/search?query={enc}&status=application")
-    return strip_html(html), "zakupki.kontur.ru"
+# ─── DeepSeek: извлекает тендеры из текста площадок ──────────────────────────
 
-
-def scrape_fabrikant(query: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(query)
-    html = fetch_page("www.fabrikant.ru", f"/trades/search/?q={enc}&type=buy")
-    return strip_html(html), "fabrikant.ru"
-
-
-def scrape_rts(query: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(query)
-    html = fetch_page("www.rts-tender.ru", f"/tender/procedure/list?searchText={enc}")
-    return strip_html(html), "rts-tender.ru"
-
-
-def scrape_b2b(query: str) -> tuple[str, str]:
-    enc = urllib.parse.quote(query)
-    html = fetch_page("www.b2b-center.ru", f"/rss/trade/?search={enc}&deal_type=buy")
-    return strip_html(html), "b2b-center.ru"
-
-
-SCRAPERS = [scrape_bicotender, scrape_kontur, scrape_fabrikant, scrape_rts, scrape_b2b]
-
-
-# ─── DeepSeek: разбирает HTML → список тендеров ───────────────────────────────
-
-def deepseek_extract(query: str, pages: list[tuple[str, str]]) -> list[dict]:
-    """
-    Отправляет DeepSeek текст страниц поиска.
-    DeepSeek извлекает конкретные тендеры и возвращает структурированный JSON.
-    """
+def deepseek_extract(topic: dict, pages: list[tuple[str, str]]) -> list[dict]:
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    if not api_key:
+    if not api_key or not pages:
         return []
 
-    # Собираем контекст из всех страниц
-    context_parts = []
-    for text, source in pages:
-        if text.strip():
-            context_parts.append(f"=== Источник: {source} ===\n{text[:3000]}\n")
-    context = "\n".join(context_parts)
+    context = "\n\n".join(
+        f"=== {src} ===\n{txt[:2500]}" for txt, src in pages
+    )
 
-    if not context.strip():
-        return []
+    prompt = f"""Направление бизнеса: {topic['label']}
+Категория поиска: {topic['category']}
 
-    prompt = f"""Запрос пользователя: "{query}"
+Ниже — текст страниц поиска с тендерных площадок. Твоя задача: извлечь ТОЛЬКО конкретные тендеры/закупки/заказы, которые относятся к направлению "{topic['label']}".
 
-Ниже — текст страниц поиска с тендерных площадок. Извлеки ВСЕ конкретные тендеры/закупки/заказы, которые соответствуют запросу.
+Строгие правила:
+- Каждая позиция = ОДИН конкретный тендер с собственным номером/ID
+- НЕ включай: каталоги компаний, статьи, рекламу, страницы организаций, списки без номера
+- URL должен вести на страницу конкретного тендера (содержать цифровой ID или номер закупки)
+- Если URL тендера не виден явно — попробуй восстановить по шаблону площадки и номеру тендера
+- Если тендер нерелевантен направлению "{topic['label']}" — пропусти его
 
-ПРАВИЛА:
-- Каждый тендер — это конкретный лот с номером или названием
-- НЕ включай каталоги, списки компаний, статьи, рекламу
-- Если номер тендера есть в тексте — включи его
-- URL тендера должен вести на конкретную страницу (с ID/номером), а не на поиск
-- Если URL не видно — сконструируй его из домена + номера тендера (например bicotender.ru/tender12345.html)
-
-Верни ТОЛЬКО JSON (без пояснений):
+Верни ТОЛЬКО JSON без пояснений:
 {{
   "tenders": [
     {{
-      "title": "Название тендера",
-      "number": "номер закупки или ID",
-      "url": "прямая ссылка на тендер",
-      "customer": "заказчик",
-      "region": "регион",
-      "price": null или число,
-      "deadline": "дата в формате YYYY-MM-DD или null",
-      "published": "дата публикации YYYY-MM-DD или null",
-      "source": "площадка (bicotender.ru / zakupki.kontur.ru и т.д.)",
-      "category": "Металлообработка | СМР | Поставка оборудования | Другое",
-      "proc_type": "тип работ (Токарные работы / Изготовление деталей / Поставка / и т.п.)"
+      "title": "Точное название тендера из текста",
+      "number": "номер закупки/ID тендера",
+      "url": "https://площадка/конкретная-страница-тендера",
+      "customer": "название заказчика",
+      "region": "регион России",
+      "price": null или число (НМЦ в рублях),
+      "deadline": "YYYY-MM-DD или null",
+      "published": "YYYY-MM-DD или null",
+      "source": "bicotender.ru / zakupki.kontur.ru / fabrikant.ru / rts-tender.ru / b2b-center.ru",
+      "proc_type": "краткий тип: Ремонт оборудования / Поставка / СМР / Отделочные работы / и т.п."
     }}
   ]
 }}
@@ -150,109 +175,146 @@ def deepseek_extract(query: str, pages: list[tuple[str, str]]) -> list[dict]:
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
-            "max_tokens": 4000,
+            "max_tokens": 3000,
         })
-        conn = http.client.HTTPSConnection("api.deepseek.com", timeout=40)
+        conn = http.client.HTTPSConnection("api.deepseek.com", timeout=45)
         conn.request("POST", "/chat/completions", payload, {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         })
         res = conn.getresponse()
-        raw = res.read(200_000).decode("utf-8", errors="replace")
+        raw = res.read(150_000).decode("utf-8", errors="replace")
         conn.close()
         data = json.loads(raw)
         content = data["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-        return parsed.get("tenders", [])
+        return json.loads(content).get("tenders", [])
     except Exception:
         return []
 
 
-# ─── Формирование финального результата ───────────────────────────────────────
+# ─── Обработка одного направления ─────────────────────────────────────────────
 
-def make_order(t: dict, idx: int) -> dict:
-    url = t.get("url") or ""
-    number = t.get("number") or "—"
-    source = t.get("source") or url.split("/")[2] if url.startswith("http") else "—"
-    price = t.get("price")
-    return {
-        "id": 1000 + idx,
-        "external_id": number,
-        "source": source,
-        "title": (t.get("title") or "Без названия")[:200],
-        "description": t.get("title") or "",
-        "customer_name": t.get("customer") or "Заказчик",
-        "processing_types": t.get("proc_type") or "Тендер",
-        "materials": "—",
-        "region": t.get("region") or "Россия",
-        "price_from": None,
-        "price_to": float(price) if price else None,
-        "currency": "RUB",
-        "deadline": t.get("deadline") or None,
-        "published_at": t.get("published") or None,
-        "status": "active",
-        "contact_info": f"Контакты на {source}",
-        "payment_terms": "договорная",
-        "category": t.get("category") or "Металлообработка",
-        "platform_type": "tender",
-        "url": url,
-        "user_status": "Новый",
-        "comments": "",
-        "favorite": False,
-        "archived": False,
-    }
+def process_topic(topic: dict) -> list[dict]:
+    """Скрапит площадки по всем запросам темы, затем DeepSeek извлекает тендеры."""
+    all_pages = []
+    seen_sources = set()
+
+    # Берём первые 2 запроса из темы (не перегружаем)
+    for q in topic["queries"][:2]:
+        pages = scrape_query(q)
+        for text, src in pages:
+            key = f"{src}:{q}"
+            if key not in seen_sources:
+                seen_sources.add(key)
+                all_pages.append((text, src))
+
+    tenders = deepseek_extract(topic, all_pages)
+
+    results = []
+    seen_urls = set()
+    for t in tenders:
+        url = (t.get("url") or "").strip()
+        title = (t.get("title") or "").strip()
+        key = url or title
+        if not key or key in seen_urls:
+            continue
+        seen_urls.add(key)
+
+        price = t.get("price")
+        source = t.get("source") or (url.split("/")[2] if url.startswith("http") else "—")
+
+        results.append({
+            "id": 0,
+            "external_id": t.get("number") or "—",
+            "source": source,
+            "title": title[:200],
+            "description": title,
+            "customer_name": t.get("customer") or "Заказчик",
+            "processing_types": t.get("proc_type") or topic["label"],
+            "materials": "—",
+            "region": t.get("region") or "Россия",
+            "price_from": None,
+            "price_to": float(price) if price else None,
+            "currency": "RUB",
+            "deadline": t.get("deadline") or None,
+            "published_at": t.get("published") or None,
+            "status": "active",
+            "contact_info": f"Контакты на {source}",
+            "payment_terms": "договорная",
+            "category": topic["category"],
+            "topic_id": topic["id"],
+            "topic_label": topic["label"],
+            "platform_type": "tender",
+            "url": url,
+            "user_status": "Новый",
+            "comments": "",
+            "favorite": False,
+            "archived": False,
+        })
+    return results
 
 
 # ─── Handler ──────────────────────────────────────────────────────────────────
 
 def handler(event: dict, context) -> dict:
-    """Поиск тендеров: скрапинг площадок + DeepSeek извлекает конкретные тендеры."""
+    """
+    Автопоиск тендеров по 4 направлениям бизнеса через DeepSeek.
+    GET / — запускает поиск по всем 4 направлениям.
+    POST / с {"topic_id": "mining"} — поиск по одному направлению.
+    """
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    body = json.loads(event.get("body") or "{}")
-    query = body.get("query", "").strip()
+    body = {}
+    if event.get("body"):
+        try:
+            body = json.loads(event["body"])
+        except Exception:
+            pass
 
-    if not query:
+    # Выбираем направления
+    topic_id = body.get("topic_id") or event.get("queryStringParameters", {}).get("topic_id")
+    if topic_id:
+        topics = [t for t in SEARCH_TOPICS if t["id"] == topic_id]
+    else:
+        topics = SEARCH_TOPICS  # все 4
+
+    if not topics:
         return {
             "statusCode": 400,
             "headers": CORS,
-            "body": json.dumps({"error": "Введите запрос"}, ensure_ascii=False),
+            "body": json.dumps({"error": "Неизвестное направление"}, ensure_ascii=False),
         }
 
-    # Параллельно скрапим все площадки
-    pages = []
-    with ThreadPoolExecutor(max_workers=5) as ex:
-        futures = {ex.submit(scrape, query): scrape.__name__ for scrape in SCRAPERS}
-        for future in as_completed(futures):
+    all_results = []
+    # Направления обрабатываем параллельно (но ограничиваем 2 за раз — лимит DeepSeek)
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futs = {ex.submit(process_topic, topic): topic["id"] for topic in topics}
+        for fut in as_completed(futs):
             try:
-                text, source = future.result()
-                if text.strip():
-                    pages.append((text, source))
+                results = fut.result()
+                all_results.extend(results)
             except Exception:
                 pass
 
-    # DeepSeek разбирает результаты
-    tenders = deepseek_extract(query, pages)
+    # Нумерация
+    for i, r in enumerate(all_results):
+        r["id"] = 1000 + i + 1
 
-    # Дедупликация по URL
-    seen = set()
-    results = []
-    for t in tenders:
-        url = t.get("url", "")
-        key = url or t.get("title", "")
-        if key and key not in seen:
-            seen.add(key)
-            results.append(make_order(t, len(results)))
+    # Группировка по направлениям для ответа
+    by_topic = {}
+    for r in all_results:
+        tid = r.get("topic_id", "other")
+        by_topic.setdefault(tid, []).append(r)
 
     return {
         "statusCode": 200,
         "headers": {**CORS, "Content-Type": "application/json"},
         "body": json.dumps({
-            "results": results,
-            "total": len(results),
-            "query": query,
-            "sources_scraped": [s for _, s in pages],
+            "results": all_results,
+            "total": len(all_results),
+            "by_topic": {tid: len(items) for tid, items in by_topic.items()},
+            "topics": [t["label"] for t in topics],
             "ai_powered": True,
         }, ensure_ascii=False),
     }

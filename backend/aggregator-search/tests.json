@@ -1,19 +1,27 @@
 {
   "tests": [
     {
-      "name": "Поиск возвращает поле query",
-      "method": "POST",
+      "name": "Автопоиск по всем направлениям (GET)",
+      "method": "GET",
       "path": "/",
-      "body": {"query": "токарные работы"},
       "expectedStatus": 200,
-      "expectedBody": {"query": "токарные работы", "ai_powered": true},
+      "expectedBody": {"ai_powered": true},
       "bodyMatcher": "partial"
     },
     {
-      "name": "Пустой запрос — ошибка",
+      "name": "Поиск по одному направлению — горное",
       "method": "POST",
       "path": "/",
-      "body": {"query": ""},
+      "body": {"topic_id": "mining"},
+      "expectedStatus": 200,
+      "expectedBody": {"ai_powered": true},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Неизвестное направление — ошибка",
+      "method": "POST",
+      "path": "/",
+      "body": {"topic_id": "unknown_xyz"},
       "expectedStatus": 400,
       "expectedBody": {},
       "bodyMatcher": "partial"
