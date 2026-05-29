@@ -22,45 +22,59 @@ HEADERS = {
     "Accept": "application/rss+xml,text/xml,*/*"
 }
 
-# Домены, которые публикуют СПИСКИ тендеров, а не сами тендеры
+# Домены / паттерны, которые дают СПИСКИ тендеров, а не сам тендер
 BLACKLIST_DOMAINS = re.compile(
     r'(initpro\.ru|tenderbase\.ru|tenderguru\.ru|zakazrf\.ru|findtenders\.ru'
-    r'|tenderplan\.ru|bicotender\.ru/tender-search|tendereasy\.ru'
-    r'|clearspending\.ru|e-disclosure\.ru|seldon\.ru|zakupki24\.ru'
-    r'|region-categories|/tendery-na-|/zakupki-na-|/tenders/search)',
+    r'|tenderplan\.ru|tendereasy\.ru|clearspending\.ru|e-disclosure\.ru'
+    r'|seldon\.ru|zakupki24\.ru)',
     re.IGNORECASE
 )
 
-# Паттерны URL каталогов/поиска/страниц пагинации
+# Паттерны URL каталогов / поиска / пагинации / страниц организаций
 CATALOG_URL = re.compile(
     r'(/search[/?]|/catalog|/category|/tags?[/?]|[?&]page=|/results[/?]'
-    r'|/extendedsearch|/list[/?]|/filter|/region-|/all$|/tendery|/zakupki-na)',
+    r'|/extendedsearch|/list[/?]|/filter|/region-|/tendery|/zakupki-na'
+    r'|/company/|/organization/|/supplier/|/customer/|/inn/'
+    r'|[?&]inn=|[?&]ogrn=|/tenders/search|/purchases/search)',
     re.IGNORECASE
 )
 
-# Тендерные площадки: URL конкретного тендера обязательно содержит числовой ID
-TENDER_ID_REQUIRED = re.compile(
-    r'(fabrikant\.ru|b2b-center\.ru|roseltorg\.ru|bicotender\.ru'
-    r'|tenders\.ru|zakupki\.gov\.ru|tender\.pro|zakupki\.kontur\.ru'
-    r'|sberbank-ast\.ru|rts-tender\.ru|etp-ets\.ru|etpgpb\.ru|astgoz\.ru)',
+# zakupki.kontur.ru: конкретный тендер — /D{номер}, страница компании — /company/{ИНН}
+# Пропускаем только ссылки вида /D{буква}{цифры} или /{цифры} — конкретный лот
+KONTUR_TENDER = re.compile(r'zakupki\.kontur\.ru/[A-Z]\d{10,}', re.IGNORECASE)
+
+# ИНН — ровно 10 или 12 цифр без букв рядом (отличаем от реального ID тендера)
+INN_PATTERN = re.compile(r'(?<![A-Za-z/])(\d{10}|\d{12})(?![0-9])')
+
+# Заголовки-мусор — это страницы организаций, а не конкретные тендеры
+JUNK_TITLES = re.compile(
+    r'^(тендеры\s+и\s+закупки\s+|все\s+тендеры\s+|закупки\s+компании\s+'
+    r'|тендеры\s+компании\s+|поставщик\s+|закупки\s+по\s+инн)',
     re.IGNORECASE
 )
 
 
-def is_real_tender_url(url: str) -> bool:
-    """Проверяет что URL ведёт на конкретный тендер, а не список/каталог."""
+def is_real_tender_url(url: str, title: str = "") -> bool:
+    """True только если URL ведёт на конкретный тендер, а не список/каталог."""
     if not url or len(url) < 10:
         return False
-    # Чёрный список доменов-агрегаторов-листингов
+    # Заголовок — явный признак страницы-списка организации
+    if title and JUNK_TITLES.search(title.strip()):
+        return False
+    # Чёрный список доменов
     if BLACKLIST_DOMAINS.search(url):
         return False
-    # Паттерны страниц-каталогов
+    # Паттерны каталогов, поиска, страниц организаций
     if CATALOG_URL.search(url):
         return False
-    # Для тендерных площадок — обязательно числовой ID ≥5 цифр
-    if TENDER_ID_REQUIRED.search(url):
-        if not re.search(r'\d{5,}', url):
-            return False
+    # zakupki.kontur.ru — только формат /D{номер}, остальное — страницы организаций
+    if 'zakupki.kontur.ru' in url:
+        return bool(KONTUR_TENDER.search(url))
+    # URL содержит только ИНН (10/12 цифр) без реального ID тендера — это страница организации
+    path = url.split("?")[0]  # без query string
+    path_tail = path.rstrip("/").split("/")[-1]
+    if INN_PATTERN.fullmatch(path_tail):
+        return False
     return True
 
 
@@ -132,7 +146,7 @@ def rss_to_orders(items, source, category, platform, proc_type="Тендер", l
         pub = (item.findtext("pubDate") or item.findtext("published") or "")[:10]
         if not title or not link:
             continue
-        if not is_real_tender_url(link):
+        if not is_real_tender_url(link, title):
             continue
         results.append(make_order(source, title, link, desc,
                                   published=pub, category=category,
@@ -274,15 +288,16 @@ def src_serper(query: str) -> list:
             conn.close()
             for item in data.get("organic", []):
                 link = item.get("link", "")
+                title_s = item.get("title", "")
                 if not link or link in seen:
                     continue
-                if not is_real_tender_url(link):
+                if not is_real_tender_url(link, title_s):
                     continue
                 seen.add(link)
                 source = item.get("displayLink", link)
                 results.append(make_order(
                     source,
-                    item.get("title", "")[:120],
+                    title_s[:120],
                     link,
                     item.get("snippet", "")[:300],
                     proc_type="Тендер",
