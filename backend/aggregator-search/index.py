@@ -285,18 +285,34 @@ def handler(event: dict, context) -> dict:
         except Exception:
             pass
 
+    # Поддерживаем оба формата: { topic_id } и { query, category }
     topic_id = body.get("topic_id") or (event.get("queryStringParameters") or {}).get("topic_id")
-    topics = [t for t in SEARCH_TOPICS if t["id"] == topic_id] if topic_id else SEARCH_TOPICS
+    free_query = body.get("query", "").strip()
+    category = body.get("category", "").strip()
 
-    if not topics:
-        return {
-            "statusCode": 400,
-            "headers": CORS,
-            "body": json.dumps({"error": "Неизвестное направление", "results": [], "total": 0}, ensure_ascii=False),
+    if free_query:
+        # Фронтенд прислал произвольный запрос — создаём динамический топик
+        topic = {
+            "id": "custom",
+            "label": category or "Тендеры",
+            "queries": [free_query],
+            "category": category or "Прочее",
         }
-
-    topic = topics[0]
-    print(f"[handler] topic={topic['id']}: {topic['label']}")
+        print(f"[handler] free query: {free_query}")
+    elif topic_id:
+        matched = [t for t in SEARCH_TOPICS if t["id"] == topic_id]
+        if not matched:
+            return {
+                "statusCode": 400,
+                "headers": CORS,
+                "body": json.dumps({"error": "Неизвестное направление", "results": [], "total": 0}, ensure_ascii=False),
+            }
+        topic = matched[0]
+        print(f"[handler] topic={topic['id']}: {topic['label']}")
+    else:
+        # Нет ни query ни topic_id — берём первую тему по умолчанию
+        topic = SEARCH_TOPICS[0]
+        print(f"[handler] default topic: {topic['id']}")
 
     try:
         results = process_topic(topic)

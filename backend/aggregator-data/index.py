@@ -34,12 +34,20 @@ def row_to_dict(row, cols):
 
 
 def safe_date(val):
+    """Преобразует дату любого формата в YYYY-MM-DD или None."""
     if not val:
         return None
-    try:
-        return str(val)[:10]
-    except Exception:
-        return None
+    s = str(val).strip()
+    # Уже YYYY-MM-DD
+    import re
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', s)
+    if m:
+        return m.group(1)
+    # DD.MM.YYYY
+    m = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', s)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    return None
 
 
 def handler(event: dict, context) -> dict:
@@ -75,55 +83,64 @@ def handler(event: dict, context) -> dict:
             }
 
         elif action == "upsert_many":
-            # Добавляем новые заказы (по url), игнорируем дубли
             orders = body.get("orders", [])
             added = 0
+            skipped = 0
+            errors = 0
             for o in orders:
-                url = o.get("url", "")
+                url = (o.get("url") or "").strip()
                 if not url:
+                    skipped += 1
                     continue
-                cur.execute(f"SELECT id FROM {T} WHERE url = %s LIMIT 1", (url,))
-                if cur.fetchone():
-                    continue  # уже есть
-                cur.execute(f"""
-                    INSERT INTO {T} (external_id, source, title, description, customer_name,
-                        processing_types, materials, region, price_from, price_to,
-                        currency, deadline, published_at, status, contact_info,
-                        payment_terms, category, platform_type, url,
-                        user_status, comments, favorite, archived)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (
-                    o.get("external_id", ""),
-                    o.get("source", ""),
-                    o.get("title", "")[:500],
-                    o.get("description", "")[:2000],
-                    o.get("customer_name", ""),
-                    o.get("processing_types", ""),
-                    o.get("materials", ""),
-                    o.get("region", ""),
-                    o.get("price_from"),
-                    o.get("price_to"),
-                    o.get("currency", "RUB"),
-                    safe_date(o.get("deadline")),
-                    safe_date(o.get("published_at")),
-                    o.get("status", "active"),
-                    o.get("contact_info", ""),
-                    o.get("payment_terms", ""),
-                    o.get("category", ""),
-                    o.get("platform_type", "tender"),
-                    url,
-                    o.get("user_status", "Новый"),
-                    o.get("comments", ""),
-                    bool(o.get("favorite", False)),
-                    bool(o.get("archived", False)),
-                ))
-                added += 1
+                try:
+                    cur.execute(f"SELECT id FROM {T} WHERE url = %s LIMIT 1", (url,))
+                    if cur.fetchone():
+                        skipped += 1
+                        continue
+                    cur.execute(f"""
+                        INSERT INTO {T} (external_id, source, title, description, customer_name,
+                            processing_types, materials, region, price_from, price_to,
+                            currency, deadline, published_at, status, contact_info,
+                            payment_terms, category, platform_type, url,
+                            user_status, comments, favorite, archived)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    """, (
+                        str(o.get("external_id") or "")[:100],
+                        str(o.get("source") or "")[:100],
+                        str(o.get("title") or "")[:500],
+                        str(o.get("description") or "")[:2000],
+                        str(o.get("customer_name") or "")[:300],
+                        str(o.get("processing_types") or "")[:300],
+                        str(o.get("materials") or "")[:200],
+                        str(o.get("region") or "")[:100],
+                        o.get("price_from"),
+                        o.get("price_to"),
+                        str(o.get("currency") or "RUB")[:10],
+                        safe_date(o.get("deadline")),
+                        safe_date(o.get("published_at")),
+                        str(o.get("status") or "active")[:20],
+                        str(o.get("contact_info") or "")[:300],
+                        str(o.get("payment_terms") or "")[:100],
+                        str(o.get("category") or "")[:100],
+                        str(o.get("platform_type") or "tender")[:20],
+                        url,
+                        str(o.get("user_status") or "Новый")[:50],
+                        str(o.get("comments") or "")[:1000],
+                        bool(o.get("favorite", False)),
+                        bool(o.get("archived", False)),
+                    ))
+                    added += 1
+                except Exception as e:
+                    errors += 1
+                    print(f"[upsert err] url={url[:60]}: {e}")
+                    conn.rollback()
             conn.commit()
             conn.close()
+            print(f"[upsert_many] added={added}, skipped={skipped}, errors={errors}")
             return {
                 "statusCode": 200,
                 "headers": {**CORS, "Content-Type": "application/json"},
-                "body": json.dumps({"ok": True, "added": added}, ensure_ascii=False),
+                "body": json.dumps({"ok": True, "added": added, "skipped": skipped, "errors": errors}, ensure_ascii=False),
             }
 
         elif action == "update_order":
