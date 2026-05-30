@@ -471,14 +471,11 @@ DEFAULT_HTML = """<!DOCTYPE html>
         // ===== РЕАЛЬНЫЙ ПОИСК ПО ПЛОЩАДКАМ =====
         const SEARCH_API = 'https://functions.poehali.dev/63646839-5642-4afa-827b-d771c8294f21';
 
-        // Запросы по всем трём категориям
+        // Запросы по трём направлениям через topic_id
         const AUTO_QUERIES = [
-            { query: 'металлообработка токарные фрезерные работы изготовление деталей', category: 'all' },
-            { query: 'металлообработка заказ тендер закупка запчасти', category: 'all' },
-            { query: 'строительно-монтажные работы СМР подряд субподряд', category: 'all' },
-            { query: 'строительство монтаж тендер закупка', category: 'all' },
-            { query: 'горное оборудование горнодобывающее запчасти дробилка конвейер экскаватор', category: 'all' },
-            { query: 'горное оборудование ремонт поставка тендер', category: 'all' },
+            { topic_id: 'metalwork' },
+            { topic_id: 'smr' },
+            { topic_id: 'mining' },
         ];
 
         async function runSearch(queries) {
@@ -490,13 +487,13 @@ DEFAULT_HTML = """<!DOCTYPE html>
             let allNew = [];
 
             for (let i = 0; i < queries.length; i++) {
-                const { query, category } = queries[i];
+                const q = queries[i];
                 btn.textContent = '⏳ ' + (i + 1) + '/' + queries.length + '...';
                 try {
                     const res = await fetch(SEARCH_API, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query, category }),
+                        body: JSON.stringify(q),
                     });
                     const data = await res.json();
                     const newOrders = data.results || [];
