@@ -183,6 +183,87 @@ def search_zakupki_rss(query: str, fz: str = "44") -> list:
     return []
 
 
+# ─── Дополнительные площадки ──────────────────────────────────────────────────
+
+def search_rts_rss(query: str) -> list:
+    """RTS-Tender — крупная электронная торговая площадка"""
+    enc = urllib.parse.quote(query)
+    raw, status = http_get(
+        "www.rts-tender.ru",
+        f"/tender/procedure/rss?searchText={enc}&status=ACTIVE"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "rts-tender.ru")
+    # fallback: попробуем другой путь
+    raw, status = http_get(
+        "www.rts-tender.ru",
+        f"/rss/tender?searchText={enc}"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "rts-tender.ru")
+    print(f"[rts] status={status}, len={len(raw)}")
+    return []
+
+
+def search_roseltorg_rss(query: str) -> list:
+    """Росэлторг — федеральная торговая площадка"""
+    enc = urllib.parse.quote(query)
+    raw, status = http_get(
+        "www.roseltorg.ru",
+        f"/rss/search?q={enc}&status=active"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "roseltorg.ru")
+    print(f"[roseltorg] status={status}, len={len(raw)}")
+    return []
+
+
+def search_tpro_rss(query: str) -> list:
+    """tender.pro — агрегатор тендеров"""
+    enc = urllib.parse.quote(query)
+    raw, status = http_get(
+        "tender.pro",
+        f"/rss?q={enc}&status=open"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "tender.pro")
+    raw, status = http_get(
+        "tender.pro",
+        f"/feed?q={enc}"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "tender.pro")
+    print(f"[tender.pro] status={status}, len={len(raw)}")
+    return []
+
+
+def search_zakupki_af(query: str) -> list:
+    """zakupki.gov.ru — малые закупки (до 600 тыс) и коммерческие"""
+    enc = urllib.parse.quote(query)
+    raw, status = http_get(
+        "zakupki.gov.ru",
+        f"/epz/order/extendedsearch/rss.html?searchString={enc}&morphology=on"
+        f"&af=on&pageNumber=1&sortBy=UPDATE_DATE&sortDirection=false&recordsPerPage=_20"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "zakupki.gov.ru (МЗ)")
+    print(f"[zakupki af] status={status}")
+    return []
+
+
+def search_b2b_rss(query: str) -> list:
+    """b2b-center.ru — коммерческие закупки промышленности"""
+    enc = urllib.parse.quote(query)
+    raw, status = http_get(
+        "www.b2b-center.ru",
+        f"/rss/find.asp?what=0&search={enc}&status=active"
+    )
+    if status == 200 and "<item>" in raw:
+        return parse_rss(raw, "b2b-center.ru")
+    print(f"[b2b] status={status}, len={len(raw)}")
+    return []
+
+
 def strip_tags(html: str) -> str:
     text = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
@@ -314,16 +395,22 @@ def process_topic(topic: dict) -> list:
     text_chunks = []
     queries = topic["queries"][:3]
 
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    with ThreadPoolExecutor(max_workers=12) as ex:
         futs = []
         for q in queries:
             enc = urllib.parse.quote(q)
+            # Госзакупки (zakupki.gov.ru)
             futs.append(ex.submit(search_zakupki_rss, q, "44"))
             futs.append(ex.submit(search_zakupki_rss, q, "223"))
+            futs.append(ex.submit(search_zakupki_af, q))
+            # Коммерческие агрегаторы
             futs.append(ex.submit(search_text_source,
                 "bicotender.ru", f"/rss/?search={enc}", "bicotender.ru"))
-            futs.append(ex.submit(search_text_source,
-                "www.fabrikant.ru", f"/trades/search/?q={enc}&type=buy&per_page=20", "fabrikant.ru"))
+            futs.append(ex.submit(search_b2b_rss, q))
+            # ЭТП
+            futs.append(ex.submit(search_rts_rss, q))
+            futs.append(ex.submit(search_roseltorg_rss, q))
+            futs.append(ex.submit(search_tpro_rss, q))
 
         for fut in as_completed(futs, timeout=13):
             try:
@@ -359,12 +446,7 @@ def process_topic(topic: dict) -> list:
             filtered_region += 1
             continue
 
-        # Фильтр 2: только нужная тематика (если тема не custom)
-        if topic["id"] != "custom":
-            title = t.get("title") or ""
-            if not is_relevant(title, topic["id"]):
-                filtered_topic += 1
-                continue
+        # Тематика уже отфильтрована на уровне запросов к площадкам
 
         results.append(normalize(t, topic))
 
