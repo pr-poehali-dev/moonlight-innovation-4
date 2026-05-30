@@ -317,7 +317,10 @@ DEFAULT_HTML = """<!DOCTYPE html>
                         '<td>' + globalIndex + '</td>' +
                         '<td><span class="source-badge">' + getPlatformTypeLabel(order.platform_type) + '</span></td>' +
                         '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(order.source) + '">' + formatSource(order.source) + '</td>' +
-                        '<td>' + escapeHtml(order.title) + '</td>' +
+                        '<td>' +
+                          (order.url ? '<a href="' + escapeHtml(order.url) + '" target="_blank" style="font-weight:600;color:#2563eb;text-decoration:none;" title="Открыть тендер">' + escapeHtml(order.title) + '</a>' : '<strong>' + escapeHtml(order.title) + '</strong>') +
+                          (order.description && order.description !== order.title ? '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + escapeHtml(order.description.substring(0, 120)) + (order.description.length > 120 ? '…' : '') + '</div>' : '') +
+                        '</td>' +
                         '<td>' + escapeHtml(order.customer_name) + '</td>' +
                         '<td>' + escapeHtml(order.processing_types) + '</td>' +
                         '<td>' + escapeHtml(order.materials) + '</td>' +
