@@ -23,11 +23,58 @@ BASE_HEADERS = {
     "Connection": "close",
 }
 
+# Три направления бизнеса — только Россия
 SEARCH_TOPICS = [
-    {"id": "mining",    "label": "Горное оборудование",    "queries": ["горное оборудование",          "горношахтное оборудование"],    "category": "Горное оборудование"},
-    {"id": "crusher",   "label": "Дробильное оборудование", "queries": ["дробильное оборудование",      "дробилка"],                     "category": "Дробильное оборудование"},
-    {"id": "smr",       "label": "СМР",                    "queries": ["строительно-монтажные работы", "монтаж оборудования"],          "category": "СМР"},
-    {"id": "finishing", "label": "Отделочные работы",      "queries": ["отделочные работы",            "ремонт отделка помещений"],      "category": "Отделочные работы"},
+    {
+        "id": "metalwork",
+        "label": "Металлообработка",
+        "queries": ["металлообработка токарные фрезерные работы", "изготовление металлических деталей", "металлообработка заготовки запчасти"],
+        "category": "Металлообработка",
+    },
+    {
+        "id": "smr",
+        "label": "СМР",
+        "queries": ["строительно-монтажные работы", "монтаж оборудования подряд", "монтаж металлоконструкций"],
+        "category": "Строительно-монтажные работы",
+    },
+    {
+        "id": "mining",
+        "label": "Горная промышленность",
+        "queries": ["горное оборудование горнодобывающее", "горношахтное оборудование ремонт поставка", "дробильное оборудование дробилка"],
+        "category": "Горная промышленность",
+    },
+]
+
+# Ключевые слова для фильтрации тендеров по тематике
+TOPIC_KEYWORDS = {
+    "metalwork": [
+        "металлообработка", "токарн", "фрезерн", "металл", "деталь", "заготовк",
+        "сварк", "резк", "штамповк", "листовой металл", "нержавеющ", "чугун",
+        "сталь", "стальн", "запчасти", "изготовление", "обработка металл",
+    ],
+    "smr": [
+        "монтаж", "строительно-монтаж", "смр", "строительство", "монтажные работы",
+        "подряд", "субподряд", "металлоконструкц", "демонтаж", "пусконаладк",
+        "реконструкц", "капитальный ремонт",
+    ],
+    "mining": [
+        "горн", "шахт", "горнодобыв", "горношахт", "дробил", "грохот", "конвейер",
+        "экскаватор", "буровой", "карьер", "добыч", "обогатительн", "руд",
+        "уголь", "угольн", "горнопромышл", "дробильн", "щековая", "конусная",
+    ],
+}
+
+# Регионы России — для фильтрации (всё что НЕ из этого списка — отсекаем)
+RUSSIA_MARKERS = [
+    "россия", "российск", "москв", "санкт-петербург", "спб",
+    "новосибирск", "екатеринбург", "нижний новгород", "казань", "челябинск",
+    "омск", "самара", "ростов", "уфа", "красноярск", "пермь", "воронеж",
+    "волгоград", "краснодар", "саратов", "тюмень", "тольятти", "ижевск",
+    "барнаул", "ульяновск", "иркутск", "хабаровск", "ярославль", "владивосток",
+    "махачкала", "томск", "оренбург", "кемерово", "новокузнецк", "рязань",
+    "астрахань", "набережные челны", "пенза", "липецк", "тула", "киров",
+    "чебоксары", "калининград", "курск", "улан-удэ", "ставрополь", "магнитогорск",
+    "область", "край", "республик", "округ", "федеральный", "рф", "россия",
 ]
 
 
@@ -192,6 +239,29 @@ URL — прямая ссылка с ID. Если не видно — соста
         return []
 
 
+def is_russia(region: str) -> bool:
+    """Проверяет, что тендер из России."""
+    if not region or region in ("—", "Россия", "РФ"):
+        return True  # неизвестный регион — считаем Россией (zakupki.gov.ru всегда Россия)
+    r = region.lower()
+    # Явные исключения — иностранные регионы
+    foreign = ["казахстан", "беларус", "украин", "узбекистан", "киргиз", "таджикистан",
+               "азербайджан", "армения", "грузия", "moldova", "latvia", "estonia",
+               "lithuania", "poland", "germany", "china", "китай"]
+    if any(f in r for f in foreign):
+        return False
+    return True  # всё остальное считаем Россией
+
+
+def is_relevant(title: str, topic_id: str) -> bool:
+    """Проверяет, что заголовок тендера соответствует направлению бизнеса."""
+    if not title:
+        return False
+    t = title.lower()
+    keywords = TOPIC_KEYWORDS.get(topic_id, [])
+    return any(kw.lower() in t for kw in keywords)
+
+
 def normalize(t: dict, topic: dict) -> dict:
     url = (t.get("url") or "").strip()
     source = t.get("source") or (url.split("/")[2] if url.startswith("http") else "—")
@@ -229,7 +299,7 @@ def normalize(t: dict, topic: dict) -> dict:
 def process_topic(topic: dict) -> list:
     structured = []
     text_chunks = []
-    queries = topic["queries"][:2]
+    queries = topic["queries"][:3]
 
     with ThreadPoolExecutor(max_workers=8) as ex:
         futs = []
@@ -262,14 +332,30 @@ def process_topic(topic: dict) -> list:
     all_tenders = structured + ai_tenders
     seen = set()
     results = []
+    filtered_region = 0
+    filtered_topic = 0
     for t in all_tenders:
         key = (t.get("url") or t.get("number") or t.get("title") or "").strip()
         if not key or key in seen:
             continue
         seen.add(key)
+
+        # Фильтр 1: только Россия
+        region = t.get("region") or ""
+        if not is_russia(region):
+            filtered_region += 1
+            continue
+
+        # Фильтр 2: только нужная тематика (если тема не custom)
+        if topic["id"] != "custom":
+            title = t.get("title") or ""
+            if not is_relevant(title, topic["id"]):
+                filtered_topic += 1
+                continue
+
         results.append(normalize(t, topic))
 
-    print(f"[process] final={len(results)}")
+    print(f"[process] final={len(results)}, filtered_region={filtered_region}, filtered_topic={filtered_topic}")
     return results
 
 

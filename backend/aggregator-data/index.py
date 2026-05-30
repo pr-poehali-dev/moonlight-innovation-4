@@ -83,6 +83,37 @@ def handler(event: dict, context) -> dict:
             }
 
         elif action == "upsert_many":
+            import re as _re
+            FOREIGN = ["казахстан", "беларус", "украин", "узбекистан", "киргиз",
+                       "таджикистан", "азербайджан", "армения", "грузия", "латви",
+                       "эстони", "литв", "польш", "германи", "китай", "china"]
+            TOPIC_KW = {
+                "metalwork": ["металлообработ", "токарн", "фрезерн", "металл", "деталь",
+                              "заготовк", "сварк", "резк", "штамповк", "листовой",
+                              "нержавеющ", "чугун", "сталь", "запчасти", "изготовление"],
+                "smr":       ["монтаж", "строительно-монтаж", "смр", "монтажные работы",
+                              "подряд", "субподряд", "металлоконструкц", "демонтаж",
+                              "пусконаладк", "реконструкц", "капитальный ремонт"],
+                "mining":    ["горн", "шахт", "горнодобыв", "горношахт", "дробил",
+                              "грохот", "конвейер", "экскаватор", "буровой", "карьер",
+                              "добыч", "обогатительн", "уголь", "дробильн"],
+            }
+            ALL_TOPIC_KW = [kw for lst in TOPIC_KW.values() for kw in lst]
+
+            def passes_filter(o):
+                # Фильтр: только Россия
+                region = (o.get("region") or "").lower()
+                if region and region not in ("—", "россия", "рф", "россия"):
+                    if any(f in region for f in FOREIGN):
+                        return False
+                # Фильтр: только нужная тематика
+                topic_id = o.get("topic_id", "custom")
+                title = (o.get("title") or "").lower()
+                if topic_id in TOPIC_KW:
+                    return any(kw in title for kw in TOPIC_KW[topic_id])
+                # Для custom/прочих — проверяем хоть какую-то нашу тематику
+                return any(kw in title for kw in ALL_TOPIC_KW)
+
             orders = body.get("orders", [])
             added = 0
             skipped = 0
@@ -90,6 +121,9 @@ def handler(event: dict, context) -> dict:
             for o in orders:
                 url = (o.get("url") or "").strip()
                 if not url:
+                    skipped += 1
+                    continue
+                if not passes_filter(o):
                     skipped += 1
                     continue
                 try:
