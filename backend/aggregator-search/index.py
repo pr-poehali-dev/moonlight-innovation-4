@@ -123,6 +123,18 @@ def parse_rss(xml_text: str, source_label: str) -> list:
             num_m = re.search(r'regNumber=([0-9A-Z\-/]+)', link + desc)
             number = num_m.group(1) if num_m else ""
 
+            # Объект закупки — реальное наименование из description
+            obj_m = re.search(
+                r'(?:Объект закупки|Наименование закупки|Предмет закупки)[:\s]+([^\n\r<|]+)',
+                desc, re.IGNORECASE
+            )
+            purchase_name = obj_m.group(1).strip()[:200] if obj_m else ""
+
+            # Если нашли объект закупки — он идёт в title, иначе оставляем оригинальный title
+            display_title = purchase_name if purchase_name else title
+            # Оригинальный title (номер извещения) идёт в description для справки
+            display_desc = title if purchase_name else ""
+
             price_m = re.search(r'([\d\s]+[\.,]\d{2})\s*руб', desc)
             price = None
             if price_m:
@@ -141,7 +153,8 @@ def parse_rss(xml_text: str, source_label: str) -> list:
             deadline = deadline_m.group(1) if deadline_m else None
 
             results.append({
-                "title": title[:200],
+                "title": display_title[:200],
+                "description": display_desc[:300],
                 "number": number or "—",
                 "url": link or "",
                 "customer": customer,
@@ -271,7 +284,7 @@ def normalize(t: dict, topic: dict) -> dict:
         "external_id": str(t.get("number") or "—")[:60],
         "source": source,
         "title": (t.get("title") or "Без названия")[:200],
-        "description": (t.get("title") or "")[:300],
+        "description": (t.get("description") or t.get("title") or "")[:300],
         "customer_name": (t.get("customer") or "—")[:200],
         "processing_types": (t.get("proc_type") or topic["label"])[:200],
         "materials": "—",
