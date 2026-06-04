@@ -7,6 +7,10 @@ import {
   KeywayItem,
   GearItem,
   ThreadItem,
+  ShaftSegment,
+  ConeItem,
+  GrooveItem,
+  CuttingOpItem,
   FIELD_DEFAULTS,
   loadSettings,
   saveSettings,
@@ -54,7 +58,10 @@ export default function Calculator() {
     setDims((prev) => ({ ...prev, [key]: val }));
   }
 
-  // Доп. операции
+  // Участки вала (для токарки/shaft)
+  const [shaftSegments, setShaftSegments] = useState<ShaftSegment[]>([{ diameter: 50, length: 100 }]);
+
+  // Доп. операции — базовые
   const [extraDrilling, setExtraDrilling] = useState(false);
   const [drillItems, setDrillItems] = useState<DrillItem[]>([{ diam: 5, depth: 15, count: 2 }]);
   const [extraKeyway, setExtraKeyway] = useState(false);
@@ -65,6 +72,16 @@ export default function Calculator() {
   const [threadItems, setThreadItems] = useState<ThreadItem[]>([{ type: "external", diam: 16, pitch: 2, length: 30, passes: 6 }]);
   const [extraLunette, setExtraLunette] = useState(false);
   const [extraReverse, setExtraReverse] = useState(false);
+
+  // Доп. операции — новые
+  const [extraConeExt, setExtraConeExt] = useState(false);
+  const [coneExtItems, setConeExtItems] = useState<ConeItem[]>([{ coneBigD: 50, coneSmallD: 30, coneLength: 80 }]);
+  const [extraConeInt, setExtraConeInt] = useState(false);
+  const [coneIntItems, setConeIntItems] = useState<ConeItem[]>([{ diameter: 50, coneBigD: 40, coneSmallD: 20, coneLength: 80 }]);
+  const [extraGroove, setExtraGroove] = useState(false);
+  const [grooveItems, setGrooveItems] = useState<GrooveItem[]>([{ grooveDiam: 40, grooveWidth: 3, grooveDepth: 2 }]);
+  const [extraCuttingOp, setExtraCuttingOp] = useState(false);
+  const [cuttingOpItems, setCuttingOpItems] = useState<CuttingOpItem[]>([{ cutType: "round", cutDiam: 50, sheetThick: 2, sheetWidth: 1000, sheetLength: 2000 }]);
   const [checkedExtraOps, setCheckedExtraOps] = useState<Record<string, boolean>>({});
 
   // Результат
@@ -72,6 +89,8 @@ export default function Calculator() {
     pricePerUnit: number;
     totalPrice: number;
     details: Array<[string, string]>;
+    cuttingInfo?: { vc_min: number; vc_max: number; f_min: number; f_max: number; insert: string } | null;
+    matName?: string;
   } | null>(null);
 
   // Модалки
@@ -134,10 +153,10 @@ export default function Calculator() {
     if (!wt) return;
     const hasSubtypes = wt.subtypes && wt.subtypes.length > 0;
     const sub = hasSubtypes ? wt.subtypes[subtypeIdx] : undefined;
-    const activeFields = sub ? sub.fields : wt.fields;
+    const subtypeId = sub?.id ?? wt.id;
 
     const mat = settings.materials[materialIdx] ?? settings.materials[0];
-    const { volume, baseMinutes } = getVolumeAndBaseTime(activeFields, dims, mat.factor);
+    const { volume, baseMinutes } = getVolumeAndBaseTime(subtypeId, wt.id, dims, mat.factor, shaftSegments);
 
     const massKg = (volume * mat.density) / 1000;
     const metalCost = customerMaterial ? 0 : massKg * mat.costPerKg;
@@ -200,8 +219,49 @@ export default function Calculator() {
       complexityFactor += settings.extraFactors.reverseComplexity;
     }
 
+    if (extraConeExt) {
+      const comp = settings.extraFactors.coneExtComplexity || 0;
+      coneExtItems.forEach(({ coneBigD, coneSmallD, coneLength }) => {
+        const D = coneBigD / 10, d = coneSmallD / 10, L = coneLength / 10;
+        const vol = (Math.PI * L / 3) * ((D / 2) ** 2 + (d / 2) ** 2 + (D / 2) * (d / 2));
+        extraTimeMinutes += vol * 0.07 * mat.factor * (1 + comp);
+      });
+    }
+
+    if (extraConeInt) {
+      const comp = settings.extraFactors.coneIntComplexity || 0;
+      coneIntItems.forEach(({ diameter, coneBigD, coneSmallD, coneLength }) => {
+        const Dout = (diameter || 0) / 10, Db = coneBigD / 10, Ds = coneSmallD / 10, L = coneLength / 10;
+        const outVol = Math.PI * (Dout / 2) ** 2 * L;
+        const inVol = (Math.PI * L / 3) * ((Db / 2) ** 2 + (Ds / 2) ** 2 + (Db / 2) * (Ds / 2));
+        extraTimeMinutes += (outVol - inVol) * 0.07 * mat.factor * (1 + comp);
+      });
+    }
+
+    if (extraGroove) {
+      const comp = settings.extraFactors.grooveComplexity || 0;
+      grooveItems.forEach(({ grooveDiam, grooveWidth, grooveDepth }) => {
+        const D = grooveDiam / 10, W = grooveWidth / 10, Dp = grooveDepth / 10;
+        const vol = Math.PI * (D / 2) * W * Dp;
+        extraTimeMinutes += vol * 0.1 * mat.factor * (1 + comp);
+      });
+    }
+
+    if (extraCuttingOp) {
+      const comp = settings.extraFactors.cuttingComplexity || 0;
+      cuttingOpItems.forEach(({ cutType, cutDiam, sheetThick, sheetWidth, sheetLength }) => {
+        if (cutType === "round") {
+          const D = cutDiam / 10;
+          extraTimeMinutes += D * 10 * 0.05 * mat.factor * (1 + comp);
+        } else {
+          const t = sheetThick / 10, w = sheetWidth / 10, l = sheetLength / 10;
+          extraTimeMinutes += 2 * (w + l) * t * 0.01 * mat.factor * (1 + comp);
+        }
+      });
+    }
+
     settings.customExtraOps.forEach((op) => {
-      if (checkedExtraOps[op.id]) {
+      if (checkedExtraOps[op.id] && (op.type === "cost" || op.type === "costPerKg")) {
         if (op.type === "cost") extraCostPerUnit += op.defaultCost;
         else if (op.type === "costPerKg") extraCostPerUnit += op.defaultCost * massKg;
       }
@@ -232,7 +292,8 @@ export default function Calculator() {
       details.push(["🔥 Доп. услуги (1 шт)", `${Math.round(extraCostPerUnit).toLocaleString("ru-RU")} ₽`]);
     }
 
-    setResult({ pricePerUnit: Math.round(unitCost), totalPrice: Math.round(totalCost), details });
+    const cuttingInfo = (mat.cutting && mat.cutting.vc_min > 0) ? mat.cutting : null;
+    setResult({ pricePerUnit: Math.round(unitCost), totalPrice: Math.round(totalCost), details, cuttingInfo, matName: mat.name });
   }
 
   return (
@@ -374,6 +435,8 @@ export default function Calculator() {
             setDim={setDim}
             quantity={quantity}
             setQuantity={setQuantity}
+            shaftSegments={shaftSegments}
+            setShaftSegments={setShaftSegments}
             extraDrilling={extraDrilling}
             setExtraDrilling={setExtraDrilling}
             drillItems={drillItems}
@@ -394,6 +457,22 @@ export default function Calculator() {
             setExtraLunette={setExtraLunette}
             extraReverse={extraReverse}
             setExtraReverse={setExtraReverse}
+            extraConeExt={extraConeExt}
+            setExtraConeExt={setExtraConeExt}
+            coneExtItems={coneExtItems}
+            setConeExtItems={setConeExtItems}
+            extraConeInt={extraConeInt}
+            setExtraConeInt={setExtraConeInt}
+            coneIntItems={coneIntItems}
+            setConeIntItems={setConeIntItems}
+            extraGroove={extraGroove}
+            setExtraGroove={setExtraGroove}
+            grooveItems={grooveItems}
+            setGrooveItems={setGrooveItems}
+            extraCuttingOp={extraCuttingOp}
+            setExtraCuttingOp={setExtraCuttingOp}
+            cuttingOpItems={cuttingOpItems}
+            setCuttingOpItems={setCuttingOpItems}
             checkedExtraOps={checkedExtraOps}
             setCheckedExtraOps={setCheckedExtraOps}
             onCalculate={calculate}
@@ -428,6 +507,28 @@ export default function Calculator() {
                     </div>
                   ))}
                 </div>
+                {result.cuttingInfo && (
+                  <>
+                    <hr className="my-4 border-white/10" />
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/40">
+                      Режимы резания · {result.matName}
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Скорость Vc</span>
+                        <span className="text-white/70">{result.cuttingInfo.vc_min}–{result.cuttingInfo.vc_max} м/мин</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Подача f</span>
+                        <span className="text-white/70">{result.cuttingInfo.f_min}–{result.cuttingInfo.f_max} мм/об</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/40">Резец</span>
+                        <span className="text-white/70">{result.cuttingInfo.insert}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <p className="mt-4 text-xs text-white/30">
                   *Расчёт носит оценочный характер. Цены указаны с НДС. Точное КП — после консультации с технологом.
                 </p>

@@ -1,1 +1,0 @@
-{"tests": [{"name": "Read S3 file", "method": "GET", "path": "/", "expectedStatus": 200}]}
