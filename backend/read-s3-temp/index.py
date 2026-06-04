@@ -1,9 +1,10 @@
-"""Временная функция для чтения файла из S3."""
+"""Временная функция для чтения файла из S3. v4"""
 import os
 import boto3
+import json
 
 def handler(event: dict, context) -> dict:
-    """Читает calculator 1.2.html из S3 и возвращает содержимое."""
+    """Ищет calculator 1.2.html в bucket 'files' по разным префиксам."""
     s3 = boto3.client(
         's3',
         endpoint_url='https://bucket.poehali.dev',
@@ -11,25 +12,34 @@ def handler(event: dict, context) -> dict:
         aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
     )
 
-    # Список всех файлов включая вложенные папки
-    all_files = []
-    paginator = s3.get_paginator('list_objects_v2')
-    for page in paginator.paginate(Bucket='files'):
-        for obj in page.get('Contents', []):
-            all_files.append(obj['Key'])
-    print(f"[s3 all files] {all_files}")
+    prefixes = ['', 'uploads/', 'files/', 'documents/', 'user/', 'public/']
+    all_found = []
 
-    # Ищем калькулятор
-    calc_key = None
-    for f in all_files:
-        if 'calculator' in f.lower() or 'Calculator' in f:
-            calc_key = f
-            break
+    for prefix in prefixes:
+        try:
+            resp = s3.list_objects_v2(Bucket='files', Prefix=prefix, MaxKeys=100)
+            keys = [obj['Key'] for obj in resp.get('Contents', [])]
+            if keys:
+                print(f"[prefix={prefix!r}] {keys}")
+                all_found.extend(keys)
+        except Exception as e:
+            print(f"[prefix={prefix!r}] ERROR: {e}")
 
-    if not calc_key:
-        return {'statusCode': 404, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': f'Not found. All files: {all_files}'}
+    print(f"[all found] {all_found}")
 
-    obj = s3.get_object(Bucket='files', Key=calc_key)
-    content = obj['Body'].read().decode('utf-8', errors='replace')
-    print(f"[s3 found] key={calc_key}, len={len(content)}")
-    return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain'}, 'body': content[:60000]}
+    for f in all_found:
+        if 'calculator' in f.lower() or 'calc' in f.lower():
+            obj = s3.get_object(Bucket='files', Key=f)
+            content = obj['Body'].read().decode('utf-8', errors='replace')
+            print(f"[found] key={f}, len={len(content)}")
+            return {
+                'statusCode': 200,
+                'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain'},
+                'body': content[:60000]
+            }
+
+    return {
+        'statusCode': 404,
+        'headers': {'Access-Control-Allow-Origin': '*'},
+        'body': json.dumps({'all_found': list(set(all_found))}, ensure_ascii=False)
+    }
